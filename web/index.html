@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Эстафета — база знаний для преемника</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,650&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <div>
+          <strong>Эстафета</strong>
+          <small>передача знаний</small>
+        </div>
+      </div>
+      <p class="lede">Документы уходящего сотрудника превращаются в базу знаний для того, кто придёт следом.</p>
+      <nav class="side-actions">
+        <button type="button" id="btn-new" class="btn primary">Новая эстафета</button>
+        <button type="button" id="btn-demo" class="btn ghost">Демо: платежный контур</button>
+      </nav>
+      <div class="meta" id="llm-flag">Проверка LLM…</div>
+      <ul class="handoff-list" id="handoff-list"></ul>
+    </aside>
+
+    <main class="stage" id="stage">
+      <section class="hero" id="view-empty">
+        <p class="kicker">Дипломный прототип</p>
+        <h1>Знания не должны уходить вместе с человеком.</h1>
+        <p>Загрузите рабочие документы — регламенты, runbook, заметки, переписку в файлах. Система извлечёт обязанности, процессы, людей, риски и незакрытые задачи, а преемник сможет спросить базу знаний живым языком.</p>
+        <ol class="steps">
+          <li>Карточка сотрудника и преемника</li>
+          <li>Документы PDF, DOCX, TXT, Markdown</li>
+          <li>Сборка базы и разговор с ней</li>
+        </ol>
+      </section>
+
+      <section class="panel hidden" id="view-form">
+        <h2>Новая эстафета</h2>
+        <form id="create-form" class="form-grid">
+          <label>Сотрудник<input name="employee_name" required placeholder="Анна Соколова" /></label>
+          <label>Должность<input name="role" required placeholder="Ведущий инженер" /></label>
+          <label>Подразделение<input name="department" placeholder="Платёжная платформа" /></label>
+          <label>Преемник<input name="successor_name" placeholder="Илья Ким" /></label>
+          <label>Последний день<input name="last_day" type="date" /></label>
+          <label class="span-2">Заметка для HR / руководителя<textarea name="notes" rows="3" placeholder="Что важно передать, кроме файлов"></textarea></label>
+          <div class="span-2">
+            <button type="submit" class="btn primary">Создать</button>
+            <button type="button" class="btn ghost" id="btn-cancel-form">Отмена</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="view-detail">
+        <header class="detail-head">
+          <div>
+            <p class="kicker" id="d-dept"></p>
+            <h1 id="d-name"></h1>
+            <p class="sub" id="d-role"></p>
+          </div>
+          <div class="head-actions">
+            <span class="pill" id="d-status"></span>
+            <a class="btn ghost" id="btn-playbook" href="#" download>Скачать playbook.md</a>
+            <button type="button" class="btn danger" id="btn-delete">Удалить</button>
+          </div>
+        </header>
+        <p class="summary" id="d-summary"></p>
+
+        <div class="split">
+          <div>
+            <h3>Документы</h3>
+            <ul class="docs" id="doc-list"></ul>
+            <form id="upload-form" class="upload">
+              <input type="file" name="file" accept=".pdf,.docx,.txt,.md" required />
+              <button type="submit" class="btn ghost">Загрузить</button>
+            </form>
+            <button type="button" class="btn primary" id="btn-process">Собрать базу знаний</button>
+            <p class="hint" id="process-hint"></p>
+          </div>
+          <div>
+            <h3>Для преемника</h3>
+            <p id="d-successor"></p>
+            <p id="d-lastday"></p>
+            <p id="d-notes"></p>
+          </div>
+        </div>
+
+        <nav class="tabs" id="tabs">
+          <button type="button" data-tab="knowledge" class="active">Карточки знаний</button>
+          <button type="button" data-tab="chat">Спросить базу</button>
+        </nav>
+
+        <div id="tab-knowledge" class="tab-body">
+          <div class="filters" id="cat-filters"></div>
+          <div class="cards" id="knowledge-cards"></div>
+        </div>
+        <div id="tab-chat" class="tab-body hidden">
+          <div class="chat" id="chat-log"></div>
+          <form id="ask-form" class="ask">
+            <input name="question" placeholder="Как дежурить по платежам? Где смотреть charge_id?" autocomplete="off" />
+            <button type="submit" class="btn primary">Спросить</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

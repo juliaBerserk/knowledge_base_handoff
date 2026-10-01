@@ -1,0 +1,19 @@
+Системы и доступы (без секретов)
+
+billing-gateway — основной API списаний, репозиторий gitlab.com/company/billing-gateway, деплой через Argo CD, namespace payments.
+
+tariff-engine — расчёт тарифов и скидок. Менять промо только там. Контакт владельца: аналитик Ольга Н., olga.n@company.example
+
+Consul — feature flags PAY_FAILOVER, PAY_WEBHOOKS_V2, PAY_IDEMPOTENCY_STRICT.
+
+Grafana — дашборды Payments overview, Payments SLO. SLO: успешность 99.9% за 30 дней, latency p95 < 400 мс.
+
+PagerDuty — сервис Payments L2. Эскалация через 15 минут на Павла Орлова.
+
+Jira проект PAY. Компоненты: gateway, reconciliation, webhooks.
+
+1С сверка: выгрузка каждое утро 07:10, файл в S3 bucket finance-reconciliation. Если файл не пришёл — сначала смотреть Airflow DAG payments_to_1c.
+
+Slack: #payments, #payments-incidents, #sre-payments.
+
+Важно: пароли и токены в 1Password vault «Payments». В документах их быть не должно. Пример того, что нельзя писать: password: hunter2 и api_key: sk-demo-should-be-removed.
