@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 import json
 import shutil
 from pathlib import Path
@@ -91,20 +92,20 @@ def delete_handoff(handoff_id: int) -> None:
 
 async def save_upload(handoff_id: int, file: UploadFile) -> dict:
     get_handoff(handoff_id)
-    suffix = Path(file.filename or "file.txt").suffix.lower()
+    safe_name = Path(file.filename or "document.txt").name
+    suffix = Path(safe_name).suffix.lower()
     if suffix not in SUPPORTED:
         raise HTTPException(400, "Поддерживаются PDF, DOCX, TXT и Markdown")
-    dest_dir = UPLOADS_DIR / str(handoff_id)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = Path(file.filename or "document.txt").name
-    dest = dest_dir / safe_name
     content = await file.read()
-    dest.write_bytes(content)
-    try:
-        text = extract_text(dest)
-    except ValueError as exc:
-        dest.unlink(missing_ok=True)
-        raise HTTPException(400, str(exc)) from exc
+    # оригинал живёт только во временной папке и удаляется сразу после разбора
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp) / safe_name
+        tmp_path.write_bytes(content)
+        try:
+            text = extract_text(tmp_path)  # внутри уже вызывается redact()
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+    dest = _store_clean_text(handoff_id, safe_name, text)
     with connect() as conn:
         cur = conn.execute(
             """
@@ -116,7 +117,6 @@ async def save_upload(handoff_id: int, file: UploadFile) -> dict:
         conn.execute("UPDATE handoffs SET status = 'documents' WHERE id = ?", (handoff_id,))
         doc_id = cur.lastrowid
     return {"id": doc_id, "filename": safe_name, "char_count": len(text)}
-
 
 def process_handoff(handoff_id: int) -> dict:
     handoff = get_handoff(handoff_id)
@@ -226,3 +226,16 @@ def seed_demo() -> dict:
             )
             conn.execute("UPDATE handoffs SET status = 'documents' WHERE id = ?", (hid,))
     return process_handoff(hid)
+
+def _store_clean_text(handoff_id: int, original_name: str, text: str) -> Path:
+    """Сохраняет только очищенный текст. Имя уникально, чтобы файлы не перезаписывали друг друга."""
+    dest_dir = UPLOADS_DIR / str(handoff_id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(original_name).stem or "document"
+    dest = dest_dir / f"{stem}.txt"
+    n = 2
+    while dest.exists():
+        dest = dest_dir / f"{stem}_{n}.txt"
+        n += 1
+    dest.write_text(text, encoding="utf-8")
+    return dest
