@@ -1,0 +1,94 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-estafeta}
+      ESTAFETA_OWNER_PASSWORD: ${ESTAFETA_OWNER_PASSWORD:-change_me_owner}
+      ESTAFETA_APP_PASSWORD: ${ESTAFETA_APP_PASSWORD:-change_me_app}
+      TZ: Europe/Moscow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB:-estafeta}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: estafeta-backend:local
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-dev-secret-key-change-me-32chars-min}
+      DATABASE_URL: postgresql+psycopg://estafeta_app:${ESTAFETA_APP_PASSWORD:-change_me_app}@db:5432/${POSTGRES_DB:-estafeta}
+      DATABASE_OWNER_URL: postgresql+psycopg://estafeta_owner:${ESTAFETA_OWNER_PASSWORD:-change_me_owner}@db:5432/${POSTGRES_DB:-estafeta}
+      TZ: Europe/Moscow
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  backend:
+    image: estafeta-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-dev-secret-key-change-me-32chars-min}
+      DATABASE_URL: postgresql+psycopg://estafeta_app:${ESTAFETA_APP_PASSWORD:-change_me_app}@db:5432/${POSTGRES_DB:-estafeta}
+      DATABASE_OWNER_URL: postgresql+psycopg://estafeta_owner:${ESTAFETA_OWNER_PASSWORD:-change_me_owner}@db:5432/${POSTGRES_DB:-estafeta}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://127.0.0.1:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-local}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
+      SESSION_MAX_HOURS: ${SESSION_MAX_HOURS:-12}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      TZ: Europe/Moscow
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    image: estafeta-backend:local
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-dev-secret-key-change-me-32chars-min}
+      DATABASE_URL: postgresql+psycopg://estafeta_app:${ESTAFETA_APP_PASSWORD:-change_me_app}@db:5432/${POSTGRES_DB:-estafeta}
+      DATABASE_OWNER_URL: postgresql+psycopg://estafeta_owner:${ESTAFETA_OWNER_PASSWORD:-change_me_owner}@db:5432/${POSTGRES_DB:-estafeta}
+      TZ: Europe/Moscow
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["python", "-m", "estafeta.workers.runner"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
