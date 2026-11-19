@@ -1,5 +1,6 @@
 .env
 .coverage
+redaction.local.json
 .venv/
 venv/
 __pycache__/

@@ -4,12 +4,12 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 
-def test_audit_revision_follows_access() -> None:
+def test_material_revision_follows_audit() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(config)
     head = script.get_revision("head")
     assert head is not None
-    assert head.revision == "0005_audit"
-    assert head.down_revision == "0004_access"
+    assert head.revision == "0006_materials"
+    assert head.down_revision == "0005_audit"

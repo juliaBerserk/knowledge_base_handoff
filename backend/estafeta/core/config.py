@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -36,6 +37,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
+    redaction_policy_path: Path | None = None
     tz: str = "Europe/Moscow"
 
     @field_validator("database_url")

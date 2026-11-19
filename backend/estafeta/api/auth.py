@@ -30,11 +30,13 @@ NewPassword = Annotated[
 ]
 
 
-def reply(status: int = 200, **body: object) -> JSONResponse:
-    return JSONResponse(body, status_code=status, headers={"Cache-Control": "no-store"})
+def reply(status_code: int = 200, **body: object) -> JSONResponse:
+    return JSONResponse(body, status_code=status_code, headers={"Cache-Control": "no-store"})
 
 
 class AuthRoute(APIRoute):
+    post_media_type = "application/json"
+
     def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
         handler = super().get_route_handler()
 
@@ -46,8 +48,8 @@ class AuthRoute(APIRoute):
                 if origin is not None and origin != get_settings().auth_public_origin:
                     return reply(403, detail="Запрос с другого сайта отклонён")
                 media_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
-                if media_type != "application/json":
-                    return reply(415, detail="Ожидается запрос в формате JSON")
+                if media_type != self.post_media_type:
+                    return reply(415, detail="Формат тела запроса не поддерживается")
             try:
                 return await handler(request)
             except RequestValidationError:

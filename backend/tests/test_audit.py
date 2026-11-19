@@ -87,6 +87,8 @@ def test_auditor_can_page_metadata_and_other_roles_cannot(
             "actor_id",
             "target_kind",
             "target_id",
+            "redaction_kind",
+            "redaction_count",
         }
 
 

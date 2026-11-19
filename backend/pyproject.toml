@@ -18,6 +18,11 @@ dependencies = [
     "argon2-cffi==23.1.0",
     "cryptography==46.0.7",
     "httpx==0.28.1",
+    "natasha==1.6.0",
+    "pymorphy3==2.0.6",
+    "pypdf==7.1.1",
+    "defusedxml==0.7.1",
+    "regex==2026.11.19",
 ]
 
 [project.optional-dependencies]

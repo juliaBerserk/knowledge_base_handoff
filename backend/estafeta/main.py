@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from estafeta.api.audit import router as audit_router
 from estafeta.api.auth import router as auth_router
 from estafeta.api.health import router as health_router
+from estafeta.api.materials import router as materials_router
 from estafeta.core.config import get_settings
 
 settings = get_settings()
@@ -27,3 +28,4 @@ if origins:
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
+app.include_router(materials_router, prefix="/api")

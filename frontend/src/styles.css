@@ -78,3 +78,25 @@ button {
   padding: 0.45rem 0.8rem;
   font: inherit;
 }
+
+.material-panel {
+  border-top: 1px solid #e7e5e4;
+  margin-top: 1.5rem;
+}
+
+.material-panel select,
+.material-panel textarea {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+  margin-bottom: 0.5rem;
+}
+
+.material-panel textarea {
+  resize: vertical;
+}
+
+.material-preview {
+  margin-top: 1rem;
+}

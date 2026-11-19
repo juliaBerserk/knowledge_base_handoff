@@ -5,6 +5,8 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from estafeta.ingest.formats import SourceKind
+
 SCHEMA = "knowledge"
 
 
@@ -154,11 +156,20 @@ class KnowledgeItem(Identified):
 
 class Material(KnowledgeItem, Base):
     __tablename__ = "materials"
-    __table_args__ = KnowledgeItem.constraints("material")
+    __table_args__ = (
+        *KnowledgeItem.constraints("material"),
+        sa.CheckConstraint(
+            "(cleaned_text IS NULL) = (source_kind IS NULL)", name="ck_material_source_pair"
+        ),
+    )
 
     space_kind: Mapped[SpaceKind] = mapped_column(enum_type(SpaceKind, "ck_material_space_kind"))
     status: Mapped[KnowledgeStatus] = mapped_column(
         enum_type(KnowledgeStatus, "ck_material_status")
+    )
+    cleaned_text: Mapped[str | None] = mapped_column(sa.Text)
+    source_kind: Mapped[SourceKind | None] = mapped_column(
+        enum_type(SourceKind, "ck_material_source_kind")
     )
 
 

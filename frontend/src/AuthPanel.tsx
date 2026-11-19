@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import MaterialPanel from "./MaterialPanel";
 
 type Session = {
   employee_id: string;
@@ -226,6 +227,9 @@ export default function AuthPanel() {
                 <button disabled={busy}>Сохранить новый пароль</button>
               </form>
             </details>
+          )}
+          {!session.enrollment_only && ["employee", "department_head"].includes(session.role) && (
+            <MaterialPanel csrf={session.csrf_token} />
           )}
           <p><button disabled={busy} onClick={() => void run(() => logout(session))}>Выйти</button></p>
         </>
