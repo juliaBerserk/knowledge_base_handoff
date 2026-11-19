@@ -128,6 +128,35 @@ def test_recovery_and_permanent_block_revoke_existing_sessions(
     assert log_in(client, employee, password=NEW_PASSWORD).status_code == 401
 
 
+def test_self_service_password_change(
+    seed_employee: Callable[[Role], UUID], client: TestClient
+) -> None:
+    employee = seed_employee(Role.EMPLOYEE)
+    activate(client, employee)
+    assert log_in(client, employee).status_code == 200
+    old_cookie = client.cookies.get(auth_api.COOKIE)
+    response = log_in(client, employee)
+    headers = {"X-CSRF-Token": response.json()["csrf_token"]}
+    path = "/api/auth/password/change"
+    valid = {"current_password": PASSWORD, "new_password": NEW_PASSWORD}
+    assert client.post(path, json=valid).status_code == 403
+    same = client.post(path, json=valid | {"new_password": PASSWORD}, headers=headers)
+    assert same.status_code == 422
+    bad = client.post(path, json=valid | {"current_password": "wrong"}, headers=headers)
+    assert bad.status_code == 403
+    pending = prepare_invitation(employee)
+    assert client.post(path, json=valid, headers=headers).status_code == 200
+    assert client.get("/api/auth/session").status_code == 401
+    assert old_cookie
+    client.cookies.set(auth_api.COOKIE, old_cookie)
+    assert client.get("/api/auth/session").status_code == 401
+    response = client.post("/api/auth/redeem", json={"token": pending, "password": PASSWORD})
+    assert response.status_code == 400
+    assert log_in(client, employee).status_code == 401
+    client.cookies.clear()
+    assert log_in(client, employee, password=NEW_PASSWORD).status_code == 200
+
+
 def test_five_failures_persist_in_database(
     seed_employee: Callable[[Role], UUID], client: TestClient
 ) -> None:

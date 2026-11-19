@@ -122,6 +122,22 @@ def clear_failures(credential: Credential) -> None:
     credential.locked_until = None
 
 
+def change_password(
+    db: Session, active: ActiveSession, current: str, new: str, now: datetime
+) -> bool:
+    credential = active.credential
+    if is_locked(credential, now):
+        return False
+    if not security.verify_password(current, credential.password_hash):
+        record_failure(credential, now)
+        return False
+    credential.password_hash = security.hash_password(new)
+    clear_failures(credential)
+    db.execute(sa.delete(Invitation).where(Invitation.employee_id == credential.employee_id))
+    revoke_sessions(db, credential.employee_id)
+    return True
+
+
 def record_failure(credential: Credential, now: datetime) -> None:
     credential.failures += 1
     if credential.failures >= 5:

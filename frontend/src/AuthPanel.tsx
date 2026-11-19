@@ -39,6 +39,15 @@ function field(form: FormData, name: string) {
   return String(form.get(name) ?? "");
 }
 
+const MIN_PASSWORD_LENGTH = 16;
+const PASSWORD_HINT = "Минимум 16 символов. Можно сочетать кириллицу, латиницу, цифры и спецсимволы.";
+
+function checkNewPassword(password: string) {
+  if ([...password].length < MIN_PASSWORD_LENGTH) {
+    throw new AuthError("Новый пароль должен содержать не менее 16 символов");
+  }
+}
+
 export default function AuthPanel() {
   const [invite, setInvite] = useState(() =>
     new URLSearchParams(window.location.hash.slice(1)).get("invite"),
@@ -98,6 +107,7 @@ export default function AuthPanel() {
 
   async function redeem(form: FormData) {
     const password = field(form, "password");
+    checkNewPassword(password);
     if (password !== field(form, "repeat")) {
       throw new AuthError("Введённые пароли различаются");
     }
@@ -151,6 +161,24 @@ export default function AuthPanel() {
     setIssuedLink("");
   }
 
+  async function changePassword(active: Session, form: FormData) {
+    const newPassword = field(form, "new_password");
+    checkNewPassword(newPassword);
+    if (newPassword !== field(form, "repeat_password")) {
+      throw new AuthError("Введённые пароли различаются");
+    }
+    await auth("password/change", {
+      current_password: field(form, "current_password"),
+      new_password: newPassword,
+    }, active.csrf_token);
+    if (!loginId) setLoginId(active.employee_id);
+    setSession(null);
+    setSetupKey("");
+    setIssuedLink("");
+    setNeedsCode(false);
+    setNotice("Пароль изменён. Войдите с новым паролем.");
+  }
+
   return (
     <section className="card">
       <h2>{invite ? "Задать пароль" : session ? "Учётная запись" : "Вход"}</h2>
@@ -158,8 +186,9 @@ export default function AuthPanel() {
       {notice && <p role="status">{notice}</p>}
       {invite ? (
         <form onSubmit={(event) => submit(event, redeem)}>
-          <label>Новый пароль <input name="password" type="password" autoComplete="new-password" required minLength={12} maxLength={256} /></label>
-          <label>Повторите пароль <input name="repeat" type="password" autoComplete="new-password" required minLength={12} maxLength={256} /></label>
+          <p id="invite-password-hint">{PASSWORD_HINT}</p>
+          <label>Новый пароль <input name="password" type="password" autoComplete="new-password" aria-describedby="invite-password-hint" required minLength={MIN_PASSWORD_LENGTH} maxLength={256} /></label>
+          <label>Повторите пароль <input name="repeat" type="password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} maxLength={256} /></label>
           <button disabled={busy}>Сохранить пароль</button>
         </form>
       ) : session ? (
@@ -181,10 +210,22 @@ export default function AuthPanel() {
             <form onSubmit={(event) => submit(event, (form) => issue(session, form))}>
               <h3>Приглашение или восстановление</h3>
               <label>Идентификатор сотрудника <input name="employee_id" required /></label>
-              <label><input name="send_email" type="checkbox" /> Отправить на корпоративную почту</label>
+              <label><input name="send_email" type="checkbox" defaultChecked /> Отправить на корпоративную почту</label>
               <button disabled={busy}>Выпустить ссылку</button>
               {issuedLink && <label>Одноразовая ссылка <input readOnly value={issuedLink} /></label>}
             </form>
+          )}
+          {!session.enrollment_only && (
+            <details>
+              <summary>Сменить пароль</summary>
+              <form onSubmit={(event) => submit(event, (form) => changePassword(session, form))}>
+                <label>Текущий пароль <input name="current_password" type="password" autoComplete="current-password" required maxLength={256} /></label>
+                <p id="change-password-hint">{PASSWORD_HINT}</p>
+                <label>Новый пароль <input name="new_password" type="password" autoComplete="new-password" aria-describedby="change-password-hint" required minLength={MIN_PASSWORD_LENGTH} maxLength={256} /></label>
+                <label>Повторите новый пароль <input name="repeat_password" type="password" autoComplete="new-password" required minLength={MIN_PASSWORD_LENGTH} maxLength={256} /></label>
+                <button disabled={busy}>Сохранить новый пароль</button>
+              </form>
+            </details>
           )}
           <p><button disabled={busy} onClick={() => void run(() => logout(session))}>Выйти</button></p>
         </>

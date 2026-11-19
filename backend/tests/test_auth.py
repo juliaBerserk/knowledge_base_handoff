@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from estafeta.api.auth import COOKIE, session_reply
+from estafeta.api.auth import COOKIE, ChangePasswordBody, RedeemBody, session_reply
 from estafeta.auth import security, service
 from estafeta.core.config import get_settings
 from estafeta.main import app
@@ -15,7 +15,7 @@ NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 def test_common_password_policy_and_argon2id() -> None:
     assert not security.password_is_allowed("short")
-    assert not security.password_is_allowed("Password1234")
+    assert not security.password_is_allowed("1234567891234567")
     password = "Пароль с церемонией и восемью грушами!"
     assert security.password_is_allowed(password)
     hashed = security.hash_password(password)
@@ -23,6 +23,22 @@ def test_common_password_policy_and_argon2id() -> None:
     assert security.verify_password(password, hashed)
     assert not security.verify_password("Другой пароль", hashed)
     assert not security.verify_password(password, None)
+
+
+def test_new_passwords_accept_mixed_characters_at_16_character_boundary() -> None:
+    password = "Вз1dQm!аб9#Xёж7%"
+    assert len(password) == 16
+    assert not security.password_is_allowed(password[:-1])
+    assert security.password_is_allowed(password)
+    token = security.new_token()
+    with pytest.raises(ValidationError):
+        RedeemBody(token=token, password=password[:-1])
+    with pytest.raises(ValidationError):
+        ChangePasswordBody(current_password="старый пароль", new_password=password[:-1])
+    assert RedeemBody(token=token, password=password).password == password
+    assert ChangePasswordBody(
+        current_password="старый пароль", new_password=password
+    ).new_password == password
 
 
 def test_totp_standard_vector_and_replay() -> None:

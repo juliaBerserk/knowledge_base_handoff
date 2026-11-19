@@ -15,6 +15,8 @@ from argon2.exceptions import VerifyMismatchError
 from cryptography.fernet import Fernet
 
 PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, type=Type.ID)
+MIN_PASSWORD_LENGTH = 16
+MAX_PASSWORD_LENGTH = 256
 ARGON_SLOTS = BoundedSemaphore(4)
 
 
@@ -46,7 +48,10 @@ def common_passwords() -> frozenset[str]:
 
 
 def password_is_allowed(password: str) -> bool:
-    return 12 <= len(password) <= 256 and password.strip().casefold() not in common_passwords()
+    return (
+        MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH
+        and password.strip().casefold() not in common_passwords()
+    )
 
 
 def hash_password(password: str) -> str:

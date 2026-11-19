@@ -23,6 +23,9 @@ COOKIE = "__Host-estafeta_session"
 CSRF_HEADER = "X-CSRF-Token"
 Code = Annotated[str, Field(pattern=r"^[0-9]{6}$")]
 Token = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{43}$")]
+NewPassword = Annotated[
+    str, Field(min_length=security.MIN_PASSWORD_LENGTH, max_length=security.MAX_PASSWORD_LENGTH)
+]
 
 
 def reply(status: int = 200, **body: object) -> JSONResponse:
@@ -62,7 +65,7 @@ class LoginBody(BaseModel):
 
 class RedeemBody(BaseModel):
     token: Token
-    password: Annotated[str, Field(min_length=12, max_length=256)]
+    password: NewPassword
 
 
 class TotpBody(BaseModel):
@@ -70,7 +73,12 @@ class TotpBody(BaseModel):
 
 
 class InviteBody(BaseModel):
-    send_email: bool = False
+    send_email: bool = True
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=256)]
+    new_password: NewPassword
 
 
 def client_key(request: Request, settings: Settings) -> str:
@@ -167,6 +175,32 @@ def inspect_session(request: Request) -> JSONResponse:
             enrollment_only=active.session.enrollment_only,
             totp_enabled=active.credential.totp_secret is not None,
         )
+
+
+@router.post("/password/change")
+def change_password(request: Request, body: ChangePasswordBody) -> JSONResponse:
+    settings = get_settings()
+    token = session_token(request)
+    if not csrf_valid(request, settings, token):
+        return reply(403, detail="Не удалось проверить подлинность запроса")
+    now = datetime.now(UTC)
+    with get_session_factory().begin() as db:
+        if not service.consume_limit(db, "password-change", client_key(request, settings), now, 15):
+            return rate_exceeded()
+        active = service.load_session(db, settings, token, now)
+        if active is None:
+            return reply(401, detail="Сессия завершена. Войдите снова")
+        if active.session.enrollment_only:
+            return reply(403, detail="Сначала настройте двухфакторную защиту")
+        if body.current_password == body.new_password:
+            return reply(422, detail="Новый пароль должен отличаться от текущего")
+        if not security.password_is_allowed(body.new_password):
+            return reply(422, detail="Этот пароль слишком распространён. Придумайте другой")
+        if not service.change_password(db, active, body.current_password, body.new_password, now):
+            return reply(403, detail="Текущий пароль неверен или вход временно заблокирован")
+    response = reply()
+    response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="lax")
+    return response
 
 
 @router.post("/logout")
