@@ -4,10 +4,12 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 
-def test_baseline_revision_is_head() -> None:
+def test_org_model_revision_follows_baseline() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(config)
-    heads = script.get_heads()
-    assert heads == ["0001_baseline"]
+    head = script.get_revision("head")
+    assert head is not None
+    assert head.revision == "0002_org_model"
+    assert head.down_revision == "0001_baseline"

@@ -3,19 +3,22 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from estafeta.core.config import get_settings
+from estafeta.core.config import MigrationSettings
+from estafeta.models import Base
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-settings = get_settings()
-target_metadata = None
+settings = MigrationSettings()
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
         url=settings.database_owner_url,
+        target_metadata=target_metadata,
+        include_schemas=True,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -26,7 +29,11 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     connectable = create_engine(settings.database_owner_url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_schemas=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

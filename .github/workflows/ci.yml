@@ -41,10 +41,12 @@ jobs:
         run: python -c "import os; from sqlalchemy import create_engine, text; conn = create_engine(os.environ['DATABASE_URL']).connect(); conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector')); conn.commit(); conn.close()"
       - name: Ruff
         run: ruff check estafeta tests alembic/env.py alembic/versions
-      - name: Pytest
-        run: pytest -q
       - name: Alembic upgrade
         run: alembic upgrade head
+      - name: Alembic schema check
+        run: alembic check
+      - name: Pytest
+        run: pytest -q
 
   frontend:
     runs-on: ubuntu-latest

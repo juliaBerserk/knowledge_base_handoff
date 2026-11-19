@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     app_name: str = "Эстафета"
     app_secret_key: str = Field(min_length=32)
     database_url: str
-    database_owner_url: str
     cors_origins: str = ""
 
     llm_base_url: str = "http://127.0.0.1:11434/v1"
@@ -29,7 +28,7 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str = ""
     tz: str = "Europe/Moscow"
 
-    @field_validator("database_url", "database_owner_url")
+    @field_validator("database_url")
     @classmethod
     def require_postgres(cls, value: str) -> str:
         if not value.startswith("postgresql"):
@@ -49,3 +48,9 @@ def get_settings() -> Settings:
 
 def clear_settings_cache() -> None:
     get_settings.cache_clear()
+
+
+class MigrationSettings(BaseSettings):
+    model_config = Settings.model_config
+
+    database_owner_url: str

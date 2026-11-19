@@ -10,7 +10,8 @@
 |---|---|---|
 | 0 | Договорённости, выбор клиента, структура репо | выполнен |
 | 1 | Каркас: Compose, БД, Alembic, CI, заготовка frontend | выполнен |
-| 2+ | Оргмодель, аутентификация, права, знания | не начат |
+| 2 | Оргмодель и метаданные знаний, ревизия `0002_org_model` | реализован |
+| 3+ | Аутентификация, права и работа со знаниями | не начат |
 
 ## Запуск
 
@@ -59,7 +60,17 @@ ruff check estafeta tests alembic
 pytest -q
 ```
 
-Интеграционные тесты с PostgreSQL: `RUN_DB_TESTS=1` (так в GitHub Actions).
+Для интеграционных тестов нужен отдельный тестовый PostgreSQL 16 с pgvector.
+Укажите его в `DATABASE_URL` и `DATABASE_OWNER_URL`, затем выполните в `backend/`:
+
+```powershell
+alembic upgrade head
+alembic check
+$env:RUN_DB_TESTS = "1"
+pytest -q
+```
+
+GitHub Actions выполняет эти проверки на отдельной тестовой БД.
 
 Playwright (стека должен быть на 8080):
 
