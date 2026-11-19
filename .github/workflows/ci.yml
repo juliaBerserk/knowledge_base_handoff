@@ -39,12 +39,31 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Enable pgvector
         run: python -c "import os; from sqlalchemy import create_engine, text; conn = create_engine(os.environ['DATABASE_URL']).connect(); conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector')); conn.commit(); conn.close()"
+      - name: Create database roles
+        run: |
+          psql postgresql://postgres:test@localhost:5432/estafeta -v ON_ERROR_STOP=1 -c "
+            CREATE ROLE estafeta_owner LOGIN PASSWORD 'owner-test';
+            CREATE ROLE estafeta_app LOGIN PASSWORD 'app-test';
+            ALTER DATABASE estafeta OWNER TO estafeta_owner;
+            ALTER SCHEMA public OWNER TO estafeta_owner;
+            REVOKE ALL ON DATABASE estafeta FROM PUBLIC;
+            GRANT CONNECT ON DATABASE estafeta TO estafeta_app, estafeta_owner;
+            REVOKE ALL ON SCHEMA public FROM PUBLIC;
+            GRANT USAGE, CREATE ON SCHEMA public TO estafeta_owner;
+            GRANT USAGE ON SCHEMA public TO estafeta_app;
+            ALTER DEFAULT PRIVILEGES FOR ROLE estafeta_owner IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO estafeta_app;
+            ALTER DEFAULT PRIVILEGES FOR ROLE estafeta_owner IN SCHEMA public
+              GRANT USAGE, SELECT ON SEQUENCES TO estafeta_app;
+          "
+          echo "DATABASE_URL=postgresql+psycopg://estafeta_app:app-test@localhost:5432/estafeta" >> "$GITHUB_ENV"
+          echo "DATABASE_OWNER_URL=postgresql+psycopg://estafeta_owner:owner-test@localhost:5432/estafeta" >> "$GITHUB_ENV"
+      - name: Apply migrations
+        run: alembic upgrade head
       - name: Ruff
         run: ruff check estafeta tests alembic/env.py alembic/versions
       - name: Pytest
         run: pytest -q
-      - name: Alembic upgrade
-        run: alembic upgrade head
 
   frontend:
     runs-on: ubuntu-latest

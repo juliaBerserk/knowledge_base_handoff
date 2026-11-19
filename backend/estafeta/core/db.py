@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from time import sleep
+from uuid import UUID
 
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import OperationalError
@@ -38,9 +39,35 @@ def reset_engine() -> None:
     _session_factory = None
 
 
-def session_scope() -> Generator[Session, None, None]:
+def set_local_user_id(session: Session, user_id: UUID) -> None:
+    """Устанавливает контекст RLS локально для текущей транзакции."""
+    session.execute(
+        text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": str(user_id)},
+    )
+
+
+def set_local_context(session: Session, name: str, value: str) -> None:
+    allowed = {
+        "app.invitation_hash",
+        "app.login_email",
+        "app.rate_limit_hash",
+        "app.session_hash",
+        "app.session_idle_minutes",
+    }
+    if name not in allowed:
+        raise ValueError(f"Недопустимый параметр контекста БД: {name}")
+    session.execute(
+        text("SELECT set_config(:name, :value, true)"),
+        {"name": name, "value": value},
+    )
+
+
+def session_scope(user_id: UUID | None = None) -> Generator[Session, None, None]:
     session = get_session_factory()()
     try:
+        if user_id is not None:
+            set_local_user_id(session, user_id)
         yield session
         session.commit()
     except Exception:
