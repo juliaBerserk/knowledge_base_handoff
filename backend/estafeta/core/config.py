@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "Эстафета"
     app_secret_key: str = Field(min_length=32)
     database_url: str
+    database_admin_url: str = ""
     cors_origins: str = ""
 
     llm_base_url: str = "http://127.0.0.1:11434/v1"

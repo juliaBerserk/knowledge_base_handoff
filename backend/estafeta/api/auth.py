@@ -16,7 +16,7 @@ from starlette.responses import Response
 from estafeta.auth import security, service
 from estafeta.auth.mail import send_invitation
 from estafeta.core.config import Settings, get_settings
-from estafeta.core.db import get_session_factory
+from estafeta.core.db import get_admin_session_factory, get_session_factory
 from estafeta.models import Employee, Role
 
 COOKIE = "__Host-estafeta_session"
@@ -259,8 +259,15 @@ def invite(request: Request, employee_id: UUID, body: InviteBody) -> JSONRespons
     token = session_token(request)
     if not csrf_valid(request, settings, token):
         return reply(403, detail="Не удалось проверить подлинность запроса")
+    if not settings.database_admin_url:
+        return reply(503, detail="Подключение к базе для администрирования не настроено")
     now = datetime.now(UTC)
-    with get_session_factory().begin() as db:
+    with get_admin_session_factory().begin() as db:
+        role_matches = db.scalar(
+            sa.text("SELECT current_user = 'estafeta_admin' AND session_user = 'estafeta_admin'")
+        )
+        if not role_matches:
+            return reply(503, detail="Ошибка настройки роли администрирования")
         # Сериализуем выдачу ссылок: два администратора могут выбрать друг друга.
         db.execute(sa.select(sa.func.pg_advisory_xact_lock(317001, 3)))
         active = service.load_session(db, settings, token, now)

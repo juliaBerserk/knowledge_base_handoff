@@ -232,7 +232,9 @@ def test_auth_database_role_only_reads_employee_auth_columns() -> None:
         assert not db.scalar(
             sa.text("SELECT has_column_privilege('knowledge.employees', 'full_name', 'SELECT')")
         )
-        assert not db.scalar(sa.text("SELECT has_table_privilege('knowledge.materials', 'SELECT')"))
+        assert not db.scalar(
+            sa.text("SELECT has_table_privilege('estafeta_admin', 'knowledge.materials', 'SELECT')")
+        )
 
 
 def test_bootstrap_only_reissues_until_admin_sets_password() -> None:

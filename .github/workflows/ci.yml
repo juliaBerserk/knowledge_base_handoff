@@ -28,6 +28,7 @@ jobs:
     env:
       APP_SECRET_KEY: test-secret-key-not-for-production-use
       DATABASE_URL: postgresql+psycopg://estafeta_app:test@localhost:5432/estafeta
+      DATABASE_ADMIN_URL: postgresql+psycopg://estafeta_admin:test@localhost:5432/estafeta
       DATABASE_OWNER_URL: postgresql+psycopg://postgres:test@localhost:5432/estafeta
       RUN_DB_TESTS: "1"
     steps:
@@ -45,6 +46,7 @@ jobs:
           with create_engine(os.environ["DATABASE_OWNER_URL"]).begin() as conn:
               conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
               conn.execute(text("CREATE ROLE estafeta_app LOGIN PASSWORD 'test'"))
+              conn.execute(text("CREATE ROLE estafeta_admin LOGIN PASSWORD 'test'"))
           PY
       - name: Ruff
         run: ruff check estafeta tests alembic/env.py alembic/versions
@@ -54,6 +56,10 @@ jobs:
         run: alembic check
       - name: Pytest
         run: pytest -q
+      - name: Permission branch coverage
+        run: |
+          coverage run --branch --include='*/estafeta/core/permissions.py' -m pytest -q tests/test_permissions.py
+          coverage report --fail-under=100
 
   frontend:
     runs-on: ubuntu-latest

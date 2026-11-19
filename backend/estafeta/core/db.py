@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from functools import lru_cache
 from time import sleep
 
 from sqlalchemy import Engine, create_engine, text
@@ -29,6 +30,14 @@ def get_session_factory() -> sessionmaker[Session]:
     if _session_factory is None:
         _session_factory = sessionmaker(bind=get_engine(), autoflush=False, autocommit=False)
     return _session_factory
+
+
+@lru_cache(maxsize=1)
+def get_admin_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        get_settings().database_admin_url, pool_pre_ping=True, hide_parameters=True
+    )
+    return sessionmaker(bind=engine, autoflush=False)
 
 
 def reset_engine() -> None:

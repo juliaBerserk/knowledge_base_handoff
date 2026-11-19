@@ -12,7 +12,8 @@
 | 1 | Каркас: Compose, БД, Alembic, CI, заготовка frontend | выполнен |
 | 2 | Оргмодель и метаданные знаний, ревизия `0002_org_model` | реализован |
 | 3 | Аутентификация, ревизия `0003_auth` | реализован |
-| 4+ | Права и работа со знаниями | не начат |
+| 4 | Модуль прав, RLS и отдельное подключение администратора | реализован |
+| 5+ | Аудит и работа со знаниями | не начат |
 
 ## Запуск
 
@@ -29,6 +30,8 @@ docker compose up --build
 API напрямую (после запуска backend): http://127.0.0.1:8000/api/health — порт 8000 снаружи не публикуется, запросы идут через Nginx на 8080.
 
 Миграции выполняет сервис `migrate` ролью `estafeta_owner`. Приложение подключается ролью `estafeta_app`.
+Если база уже работала на этапе 3, создайте отдельную роль администратора
+перед обновлением. [Обновление существующей БД](docs/etap-4.md#обновление-базы-с-этапа-3)
 
 ### Первый вход
 
@@ -77,7 +80,8 @@ pytest -q
 ```
 
 Для интеграционных тестов нужен отдельный тестовый PostgreSQL 16 с pgvector.
-Укажите его в `DATABASE_URL` и `DATABASE_OWNER_URL`, затем выполните в `backend/`:
+Задайте `DATABASE_URL`, `DATABASE_OWNER_URL` и `DATABASE_ADMIN_URL`
+для ролей тестовой БД. Команды выполняются в каталоге `backend/`.
 
 ```powershell
 alembic upgrade head
@@ -102,9 +106,11 @@ npm run test:e2e
 |---|---|
 | `APP_SECRET_KEY` | секрет приложения для CSRF и шифрования TOTP (≥ 32 символов) |
 | `DATABASE_URL` | PostgreSQL, роль приложения `estafeta_app` |
+| `DATABASE_ADMIN_URL` | отдельное подключение `estafeta_admin` для административных действий API |
 | `DATABASE_OWNER_URL` | PostgreSQL, роль владельца таблиц (только миграции) |
 | `POSTGRES_PASSWORD` | пароль суперпользователя контейнера БД |
 | `ESTAFETA_OWNER_PASSWORD` / `ESTAFETA_APP_PASSWORD` | пароли ролей |
+| `ESTAFETA_ADMIN_PASSWORD` | пароль ограниченной роли `estafeta_admin` в Compose |
 | `CORS_ORIGINS` | список origin через запятую (для Vite); в Compose за Nginx пустой |
 | `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` | OpenAI-совместимый LLM (этапы RAG) |
 | `EMBEDDING_MODEL` | идентификатор эмбеддера (BGE-M3) |

@@ -104,6 +104,11 @@ class KnowledgeSpace(Identified, Base):
     __table_args__ = (
         sa.UniqueConstraint("id", "kind", name="uq_space_id_kind"),
         sa.CheckConstraint(
+            "(review_department_id IS NULL AND review_until IS NULL) OR "
+            "(kind = 'personal' AND review_department_id IS NOT NULL AND review_until IS NOT NULL)",
+            name="ck_space_review_binding",
+        ),
+        sa.CheckConstraint(
             "(kind = 'personal' AND employee_id IS NOT NULL AND position_id IS NULL "
             "AND department_id IS NULL) OR "
             "(kind = 'position' AND employee_id IS NULL AND position_id IS NOT NULL "
@@ -118,6 +123,10 @@ class KnowledgeSpace(Identified, Base):
     employee_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("employees.id"), unique=True)
     position_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("positions.id"), unique=True)
     department_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("departments.id"), unique=True)
+    review_department_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("departments.id", name="fk_space_review_department")
+    )
+    review_until: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
 
 class KnowledgeItem(Identified):
