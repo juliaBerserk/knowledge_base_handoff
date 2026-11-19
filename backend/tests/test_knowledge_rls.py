@@ -24,6 +24,7 @@ from estafeta.models import (
     SpaceKind,
 )
 from estafeta.models import KnowledgeStatus as Status
+from estafeta.models.audit import Action, AuditEvent
 from estafeta.models.auth import AuthSession, Credential
 
 pytestmark = pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="нужен PostgreSQL")
@@ -220,3 +221,25 @@ def test_context_is_transaction_local_and_repository_checks_permissions(
         assert db.scalar(sa.text("SELECT current_user")) == "estafeta_app"
     with knowledge_transaction(tokens["departed"]) as db:
         assert db is None
+
+
+def test_successful_foreign_read_is_audited(
+    data: tuple[dict[str, UUID], dict[str, str]],
+) -> None:
+    ids, tokens = data
+    with knowledge_transaction(tokens["head"]) as db:
+        assert db is not None
+        assert read_knowledge(db, Material, ids["draft_materials"]) is None
+        assert read_knowledge(db, Material, ids["submitted_materials"]) is not None
+    engine = sa.create_engine(MigrationSettings().database_owner_url)
+    try:
+        with Session(engine) as db:
+            items = db.scalars(
+                sa.select(AuditEvent.target_id).where(
+                    AuditEvent.action == Action.KNOWLEDGE_VIEWED,
+                    AuditEvent.actor_id == ids["head"],
+                )
+            )
+            assert list(items) == [ids["submitted_materials"]]
+    finally:
+        engine.dispose()

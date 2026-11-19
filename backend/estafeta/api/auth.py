@@ -15,9 +15,11 @@ from starlette.responses import Response
 
 from estafeta.auth import security, service
 from estafeta.auth.mail import send_invitation
+from estafeta.core.audit import append_event
 from estafeta.core.config import Settings, get_settings
 from estafeta.core.db import get_admin_session_factory, get_session_factory
 from estafeta.models import Employee, Role
+from estafeta.models.audit import Action, Outcome, Target
 
 COOKIE = "__Host-estafeta_session"
 CSRF_HEADER = "X-CSRF-Token"
@@ -130,16 +132,23 @@ def csrf_valid(request: Request, settings: Settings, token: str) -> bool:
 def login(request: Request, body: LoginBody) -> JSONResponse:
     settings = get_settings()
     now = datetime.now(UTC)
+    client = client_key(request, settings)
     with get_session_factory().begin() as db:
-        if not service.consume_limit(db, "login", client_key(request, settings), now, 30):
+        if not service.consume_limit(db, "login", client, now, 30):
+            if service.consume_limit(db, "login-audit-throttle", client, now, 1):
+                append_event(db, Action.LOGIN, Outcome.THROTTLED)
             return rate_exceeded()
         result = service.login(db, settings, body.login, body.password, body.code, now)
         if result.totp_required:
+            append_event(db, Action.LOGIN, Outcome.CHALLENGE)
             return reply(
                 401, detail="Введите код из приложения-аутентификатора", totp_required=True
             )
         if result.token is None:
+            append_event(db, Action.LOGIN, Outcome.DENIED)
             return reply(401, detail="Не удалось войти. Проверьте данные или повторите позже")
+        outcome = Outcome.CHALLENGE if result.enrollment_only else Outcome.SUCCESS
+        append_event(db, Action.LOGIN, outcome, actor_id=result.employee_id)
         return session_reply(settings, result.token, result.enrollment_only)
 
 
@@ -155,6 +164,7 @@ def redeem(request: Request, body: RedeemBody) -> JSONResponse:
         employee_id = service.redeem_invitation(db, body.token, body.password, now)
         if employee_id is None:
             return reply(400, detail="Ссылка недействительна или срок её действия истёк")
+        append_event(db, Action.PASSWORD_SET, actor_id=employee_id)
         return reply(login_id=str(employee_id))
 
 
@@ -198,6 +208,7 @@ def change_password(request: Request, body: ChangePasswordBody) -> JSONResponse:
             return reply(422, detail="Этот пароль слишком распространён. Придумайте другой")
         if not service.change_password(db, active, body.current_password, body.new_password, now):
             return reply(403, detail="Текущий пароль неверен или вход временно заблокирован")
+        append_event(db, Action.PASSWORD_CHANGED, actor_id=active.principal.employee_id)
     response = reply()
     response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="lax")
     return response
@@ -214,6 +225,7 @@ def logout(request: Request) -> JSONResponse:
             active = service.load_session(db, settings, token, datetime.now(UTC))
             if active is not None:
                 db.delete(active.session)
+                append_event(db, Action.LOGOUT, actor_id=active.principal.employee_id)
     response = reply()
     response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="lax")
     return response
@@ -250,6 +262,9 @@ def finish_totp(request: Request, body: TotpBody) -> JSONResponse:
         new_token = service.confirm_totp(db, active, settings, body.code, now)
         if new_token is None:
             return reply(400, detail="Код неверен или настройка двухфакторной защиты не начата")
+        append_event(db, Action.TOTP_ENABLED, actor_id=active.principal.employee_id)
+        if active.session.enrollment_only:
+            append_event(db, Action.LOGIN, actor_id=active.principal.employee_id)
         return session_reply(settings, new_token, False)
 
 
@@ -283,6 +298,12 @@ def invite(request: Request, employee_id: UUID, body: InviteBody) -> JSONRespons
         invitation = service.issue_invitation(db, employee_id, now)
         if invitation is None:
             return reply(409, detail="Учётная запись сотрудника отключена")
+        append_event(
+            db,
+            Action.INVITATION_ISSUED,
+            actor_id=active.principal.employee_id,
+            target=(Target.EMPLOYEE, employee_id),
+        )
     link = security.invitation_link(settings.auth_public_origin, invitation)
     delivered = (
         body.send_email

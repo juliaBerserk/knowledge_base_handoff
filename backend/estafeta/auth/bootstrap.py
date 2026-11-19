@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 
 from estafeta.auth.security import invitation_link
 from estafeta.auth.service import issue_invitation, lock_credential
+from estafeta.core.audit import append_event
 from estafeta.core.config import MigrationSettings, get_settings
 from estafeta.models import Employee, Role
+from estafeta.models.audit import Action, Target
 
 
 def bootstrap(db: Session, email: str, now: datetime) -> str | None:
@@ -23,7 +25,10 @@ def bootstrap(db: Session, email: str, now: datetime) -> str | None:
             return None
     else:
         return None
-    return issue_invitation(db, employee.id, now)
+    invitation = issue_invitation(db, employee.id, now)
+    if invitation is not None:
+        append_event(db, Action.ADMIN_BOOTSTRAPPED, target=(Target.EMPLOYEE, employee.id))
+    return invitation
 
 
 def main() -> None:

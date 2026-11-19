@@ -38,6 +38,7 @@ class LoginResult:
     token: str | None = None
     enrollment_only: bool = False
     totp_required: bool = False
+    employee_id: UUID | None = None
 
 
 def consume_limit(db: Session, scope: str, client: str, now: datetime, limit: int) -> bool:
@@ -222,7 +223,11 @@ def login(
         credential.totp_last_step = step
     clear_failures(credential)
     enroll = principal.role in MANDATORY_TOTP and credential.totp_secret is None
-    return LoginResult(create_session(db, principal.employee_id, now, enroll), enroll)
+    return LoginResult(
+        token=create_session(db, principal.employee_id, now, enroll),
+        enrollment_only=enroll,
+        employee_id=principal.employee_id,
+    )
 
 
 def session_expired(session: AuthSession, settings: Settings, now: datetime) -> bool:

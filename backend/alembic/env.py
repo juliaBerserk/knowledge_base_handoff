@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, pool
 
 from estafeta.core.config import MigrationSettings
 from estafeta.models import Base
+from estafeta.models import audit as _audit_models  # noqa: F401
 from estafeta.models import auth as _auth_models  # noqa: F401
 
 config = context.config
