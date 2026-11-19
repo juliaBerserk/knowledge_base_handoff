@@ -53,3 +53,28 @@ h2 {
 .error {
   color: #9f1239;
 }
+
+form {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+form label {
+  display: block;
+}
+
+input:not([type="checkbox"]) {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+  border: 1px solid #78716c;
+  border-radius: 4px;
+}
+
+button {
+  justify-self: start;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+}

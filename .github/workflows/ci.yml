@@ -27,7 +27,7 @@ jobs:
         working-directory: backend
     env:
       APP_SECRET_KEY: test-secret-key-not-for-production-use
-      DATABASE_URL: postgresql+psycopg://postgres:test@localhost:5432/estafeta
+      DATABASE_URL: postgresql+psycopg://estafeta_app:test@localhost:5432/estafeta
       DATABASE_OWNER_URL: postgresql+psycopg://postgres:test@localhost:5432/estafeta
       RUN_DB_TESTS: "1"
     steps:
@@ -37,8 +37,15 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -e ".[dev]"
-      - name: Enable pgvector
-        run: python -c "import os; from sqlalchemy import create_engine, text; conn = create_engine(os.environ['DATABASE_URL']).connect(); conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector')); conn.commit(); conn.close()"
+      - name: Enable pgvector and provision app role
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_OWNER_URL"]).begin() as conn:
+              conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+              conn.execute(text("CREATE ROLE estafeta_app LOGIN PASSWORD 'test'"))
+          PY
       - name: Ruff
         run: ruff check estafeta tests alembic/env.py alembic/versions
       - name: Alembic upgrade
@@ -59,6 +66,6 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: frontend/package.json
-      - run: npm install
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
       - run: npm run build

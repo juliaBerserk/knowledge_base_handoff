@@ -1,0 +1,209 @@
+import { useEffect, useState, type FormEvent } from "react";
+
+type Session = {
+  employee_id: string;
+  role: string;
+  csrf_token: string;
+  enrollment_only: boolean;
+  totp_enabled: boolean;
+};
+
+class AuthError extends Error {
+  constructor(message: string, readonly needsCode = false, readonly status = 0) {
+    super(message);
+  }
+}
+
+async function auth<T>(path: string, body?: object, csrf?: string): Promise<T> {
+  const headers = new Headers();
+  if (body) headers.set("Content-Type", "application/json");
+  if (csrf) headers.set("X-CSRF-Token", csrf);
+  const response = await fetch(`/api/auth/${path}`, {
+    method: body ? "POST" : "GET",
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new AuthError(
+      error?.detail ?? "Сервис аутентификации временно недоступен",
+      error?.totp_required === true,
+      response.status,
+    );
+  }
+  return (await response.json()) as T;
+}
+
+function field(form: FormData, name: string) {
+  return String(form.get(name) ?? "");
+}
+
+export default function AuthPanel() {
+  const [invite, setInvite] = useState(() =>
+    new URLSearchParams(window.location.hash.slice(1)).get("invite"),
+  );
+  const [session, setSession] = useState<Session | null>(null);
+  const [loginId, setLoginId] = useState("");
+  const [needsCode, setNeedsCode] = useState(false);
+  const [setupKey, setSetupKey] = useState("");
+  const [issuedLink, setIssuedLink] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.hash.slice(1)).has("invite")) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    let current = true;
+    void auth<Session>("session").then((data) => {
+      if (current) setSession(data);
+    }).catch((reason: unknown) => {
+      if (current && (!(reason instanceof AuthError) || reason.status !== 401)) {
+        setError("Не удалось проверить текущую сессию");
+      }
+    });
+    return () => { current = false; };
+  }, []);
+
+  async function run(task: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await task();
+    } catch (reason) {
+      if (reason instanceof AuthError) {
+        if (reason.needsCode) setNeedsCode(true);
+        if (reason.status === 401 && session) {
+          setSession(null);
+          setSetupKey("");
+          setIssuedLink("");
+        }
+        setError(reason.message);
+      } else {
+        setError("Не удалось связаться с сервером");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>, task: (form: FormData) => Promise<void>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    void run(() => task(form));
+  }
+
+  async function redeem(form: FormData) {
+    const password = field(form, "password");
+    if (password !== field(form, "repeat")) {
+      throw new AuthError("Введённые пароли различаются");
+    }
+    const data = await auth<{ login_id: string }>("redeem", { token: invite, password });
+    setSession(null);
+    setSetupKey("");
+    setIssuedLink("");
+    setInvite(null);
+    setLoginId(data.login_id);
+    setNeedsCode(false);
+    setNotice(`Пароль задан. Сохраните идентификатор для входа: ${data.login_id}.`);
+  }
+
+  async function login(form: FormData) {
+    await auth("login", {
+      login: loginId,
+      password: field(form, "password"),
+      code: field(form, "code") || null,
+    });
+    setSession(await auth<Session>("session"));
+    setNeedsCode(false);
+  }
+
+  async function startTotp(active: Session) {
+    const data = await auth<{ uri: string }>("totp/start", {}, active.csrf_token);
+    setSetupKey(new URL(data.uri).searchParams.get("secret") ?? "");
+  }
+
+  async function confirmTotp(active: Session, form: FormData) {
+    await auth("totp/confirm", { code: field(form, "code") }, active.csrf_token);
+    setSetupKey("");
+    setSession(await auth<Session>("session"));
+    setNotice("Двухфакторная защита включена");
+  }
+
+  async function issue(active: Session, form: FormData) {
+    setIssuedLink("");
+    const id = encodeURIComponent(field(form, "employee_id").trim());
+    const sendEmail = form.has("send_email");
+    const data = await auth<{ url: string; delivered: boolean }>(
+      `invitations/${id}`, { send_email: sendEmail }, active.csrf_token,
+    );
+    setIssuedLink(data.url);
+    if (sendEmail) setNotice(data.delivered ? "Письмо отправлено" : "Скопируйте и передайте ссылку");
+  }
+
+  async function logout(active: Session) {
+    await auth("logout", {}, active.csrf_token);
+    setSession(null);
+    setSetupKey("");
+    setIssuedLink("");
+  }
+
+  return (
+    <section className="card">
+      <h2>{invite ? "Задать пароль" : session ? "Учётная запись" : "Вход"}</h2>
+      {error && <p className="error" role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+      {invite ? (
+        <form onSubmit={(event) => submit(event, redeem)}>
+          <label>Новый пароль <input name="password" type="password" autoComplete="new-password" required minLength={12} maxLength={256} /></label>
+          <label>Повторите пароль <input name="repeat" type="password" autoComplete="new-password" required minLength={12} maxLength={256} /></label>
+          <button disabled={busy}>Сохранить пароль</button>
+        </form>
+      ) : session ? (
+        <>
+          <p>{session.enrollment_only ? "Для входа настройте двухфакторную защиту." : `Идентификатор: ${session.employee_id}`}</p>
+          {session.totp_enabled ? <p>Двухфакторная защита включена.</p> : setupKey ? (
+            <form onSubmit={(event) => submit(event, (form) => confirmTotp(session, form))}>
+              <p>Введите ключ в приложение-аутентификатор и укажите полученный код.</p>
+              <label>Ключ настройки <input readOnly value={setupKey} /></label>
+              <CodeInput />
+              <button disabled={busy}>Подтвердить</button>
+            </form>
+          ) : (
+            <button disabled={busy} onClick={() => void run(() => startTotp(session))}>
+              Настроить двухфакторную защиту
+            </button>
+          )}
+          {!session.enrollment_only && session.role === "admin" && (
+            <form onSubmit={(event) => submit(event, (form) => issue(session, form))}>
+              <h3>Приглашение или восстановление</h3>
+              <label>Идентификатор сотрудника <input name="employee_id" required /></label>
+              <label><input name="send_email" type="checkbox" /> Отправить на корпоративную почту</label>
+              <button disabled={busy}>Выпустить ссылку</button>
+              {issuedLink && <label>Одноразовая ссылка <input readOnly value={issuedLink} /></label>}
+            </form>
+          )}
+          <p><button disabled={busy} onClick={() => void run(() => logout(session))}>Выйти</button></p>
+        </>
+      ) : (
+        <form onSubmit={(event) => submit(event, login)}>
+          <label>Корпоративная почта или идентификатор <input name="login" value={loginId} onChange={(event) => setLoginId(event.target.value)} autoComplete="username" required maxLength={254} /></label>
+          <label>Пароль <input name="password" type="password" autoComplete="current-password" required maxLength={256} /></label>
+          {needsCode && <CodeInput />}
+          <button disabled={busy}>Войти</button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function CodeInput() {
+  return (
+    <label>Код из приложения
+      <input name="code" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" required />
+    </label>
+  );
+}

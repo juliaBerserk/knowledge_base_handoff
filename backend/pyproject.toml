@@ -16,6 +16,7 @@ dependencies = [
     "alembic==1.15.2",
     "psycopg[binary]==3.2.6",
     "argon2-cffi==23.1.0",
+    "cryptography==46.0.7",
     "httpx==0.28.1",
 ]
 
@@ -27,6 +28,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["estafeta*"]
+
+[tool.setuptools.package-data]
+"estafeta.auth" = ["common-passwords.txt.gz", "DJANGO-LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

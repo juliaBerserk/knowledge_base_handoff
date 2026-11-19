@@ -11,7 +11,8 @@
 | 0 | Договорённости, выбор клиента, структура репо | выполнен |
 | 1 | Каркас: Compose, БД, Alembic, CI, заготовка frontend | выполнен |
 | 2 | Оргмодель и метаданные знаний, ревизия `0002_org_model` | реализован |
-| 3+ | Аутентификация, права и работа со знаниями | не начат |
+| 3 | Аутентификация, ревизия `0003_auth` | реализован |
+| 4+ | Права и работа со знаниями | не начат |
 
 ## Запуск
 
@@ -22,11 +23,26 @@ copy .env.example .env
 docker compose up --build
 ```
 
-Откройте http://127.0.0.1:8080 — SPA проверяет `GET /api/health`.
+Откройте [локальный интерфейс](http://localhost:8080). Адрес должен совпадать
+с `AUTH_PUBLIC_ORIGIN`.
 
 API напрямую (после запуска backend): http://127.0.0.1:8000/api/health — порт 8000 снаружи не публикуется, запросы идут через Nginx на 8080.
 
 Миграции выполняет сервис `migrate` ролью `estafeta_owner`. Приложение подключается ролью `estafeta_app`.
+
+### Первый вход
+
+Укажите свою корпоративную почту в `BOOTSTRAP_ADMIN_EMAIL` и задайте уникальный
+`APP_SECRET_KEY` в `.env`. Выполните команду после запуска стека.
+
+```powershell
+docker compose run --rm migrate python -m estafeta.auth.bootstrap
+```
+
+Откройте ссылку из вывода команды, задайте пароль и войдите. При первом входе
+администратор настраивает TOTP в приложении-аутентификаторе. После настройки
+он может выдавать ссылки на 72 часа для существующих сотрудников. Подробнее
+о сессиях, восстановлении и SMTP см. в [документации этапа 3](docs/etap-3.md).
 
 ### Локальная разработка без контейнера API
 
@@ -39,14 +55,14 @@ py -3.12 -m venv .venv
 pip install -e ".[dev]"
 copy ..\.env.example .env
 # DATABASE_* в .env должны указывать на localhost
+# AUTH_PUBLIC_ORIGIN для Vite — http://localhost:5173
 alembic upgrade head
 uvicorn estafeta.main:app --reload --port 8000
 ```
 
 ```powershell
 cd frontend
-npm install
-# после первого install закоммитьте package-lock.json
+npm ci
 npm run dev
 ```
 
@@ -84,7 +100,7 @@ npm run test:e2e
 
 | Переменная | Назначение |
 |---|---|
-| `APP_SECRET_KEY` | секрет приложения (≥ 32 символов) |
+| `APP_SECRET_KEY` | секрет приложения для CSRF и шифрования TOTP (≥ 32 символов) |
 | `DATABASE_URL` | PostgreSQL, роль приложения `estafeta_app` |
 | `DATABASE_OWNER_URL` | PostgreSQL, роль владельца таблиц (только миграции) |
 | `POSTGRES_PASSWORD` | пароль суперпользователя контейнера БД |
@@ -93,13 +109,18 @@ npm run test:e2e
 | `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` | OpenAI-совместимый LLM (этапы RAG) |
 | `EMBEDDING_MODEL` | идентификатор эмбеддера (BGE-M3) |
 | `SESSION_IDLE_MINUTES` / `SESSION_MAX_HOURS` | 30 / 12 по умолчанию |
+| `AUTH_PUBLIC_ORIGIN` | точный origin интерфейса, применяется к POST-запросам и ссылкам |
+| `AUTH_TRUST_PROXY_IP` | доверие к `X-Real-IP` от Nginx, включено в Compose |
 | `BOOTSTRAP_ADMIN_EMAIL` | первый администратор (этап 3) |
 | `SMTP_*` | опциональная почта приглашений |
 | `TZ` | `Europe/Moscow` |
 
 Полный шаблон: `.env.example`.
 
-TLS Nginx и сертификаты — этап 12. Сейчас HTTP на порту 8080. Хостинг и бэкапы в проде — на территории РФ.
+Compose публикует HTTP на loopback для разработки. TLS Nginx и сертификаты
+предусмотрены на этапе 12. Для развёртывания раньше этапа 12 используйте
+существующий HTTPS-прокси организации с настроенным `AUTH_PUBLIC_ORIGIN`.
+Хостинг и бэкапы в проде — на территории РФ.
 
 ## Структура
 

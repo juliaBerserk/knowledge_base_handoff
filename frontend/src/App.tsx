@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import AuthPanel from "./AuthPanel";
+
 type Health = {
   ok: boolean;
   service: string;
@@ -45,11 +47,8 @@ export default function App() {
       <header>
         <p className="eyebrow">Корпоративные знания</p>
         <h1>Эстафета</h1>
-        <p className="lead">
-          Система сохранения и передачи знаний. Каркас запущен, рабочие сценарии появятся
-          на следующих этапах.
-        </p>
       </header>
+      <AuthPanel />
       <section className="card" aria-live="polite">
         <h2>Состояние сервиса</h2>
         {state === "loading" && <p>Проверяем API…</p>}
