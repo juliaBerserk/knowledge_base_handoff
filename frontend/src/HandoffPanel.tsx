@@ -208,7 +208,7 @@ export default function HandoffPanel({ csrf, role }: { csrf: string; role: strin
             <ul>{hints.length === 0 ? <li>Доступных публикаций пока нет.</li> : hints.map((item) => (
               <li key={item.id}>
                 <p>{item.category ? CATEGORIES[item.category] : "Материал"} · {item.excerpt}</p>
-                <a href={`/api/publication/${item.kind}/${item.id}`} target="_blank" rel="noreferrer">
+                <a href={`/knowledge/${item.kind}/${item.id}`} target="_blank" rel="noreferrer">
                   Открыть публикацию
                 </a>
               </li>

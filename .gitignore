@@ -1,4 +1,6 @@
 .env
+.env.production
+tls/
 .coverage
 redaction.local.json
 .venv/

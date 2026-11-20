@@ -5,6 +5,7 @@ import PublicationPanel from "./PublicationPanel";
 import AdminPanel from "./AdminPanel";
 import RagPanel from "./RagPanel";
 import HandoffPanel from "./HandoffPanel";
+import AuditPanel from "./AuditPanel";
 
 type Session = {
   employee_id: string;
@@ -13,6 +14,24 @@ type Session = {
   enrollment_only: boolean;
   totp_enabled: boolean;
 };
+
+const ROLE_LABELS: Record<string, string> = {
+  employee: "Сотрудник", department_head: "Руководитель отдела", hr: "HR",
+  admin: "Администратор", security_auditor: "Аудитор ИБ",
+};
+
+function WorkspaceNav({ role }: { role: string }) {
+  const knowledge = role === "employee" || role === "department_head";
+  return <nav className="workspace-nav" aria-label="Разделы рабочего пространства">
+    {knowledge && <>
+      <a href="#search">Поиск и чат</a><a href="#materials">Добавить материал</a>
+      <a href="#build">Сборка базы</a><a href="#publication">Материалы и записи</a>
+    </>}
+    {(knowledge || role === "hr") && <a href="#handoffs">Эстафеты</a>}
+    {role === "admin" && <a href="#administration">Администрирование</a>}
+    {role === "security_auditor" && <a href="#audit">Журнал аудита</a>}
+  </nav>;
+}
 
 class AuthError extends Error {
   constructor(message: string, readonly needsCode = false, readonly status = 0) {
@@ -170,7 +189,7 @@ export default function AuthPanel() {
   }
 
   return (
-    <section className="card">
+    <section className={invite || !session ? "card auth-card" : "card workspace"} id="account">
       <h2>{invite ? "Задать пароль" : session ? "Учётная запись" : "Вход"}</h2>
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
@@ -183,7 +202,8 @@ export default function AuthPanel() {
         </form>
       ) : session ? (
         <>
-          <p>{session.enrollment_only ? "Для входа настройте двухфакторную защиту." : `Идентификатор: ${session.employee_id}`}</p>
+          <p>{session.enrollment_only ? "Для входа настройте двухфакторную защиту." : ROLE_LABELS[session.role]}</p>
+          {!session.enrollment_only && <WorkspaceNav role={session.role} />}
           {session.totp_enabled ? <p>Двухфакторная защита включена.</p> : setupKey ? (
             <form onSubmit={(event) => submit(event, (form) => confirmTotp(session, form))}>
               <p>Введите ключ в приложение-аутентификатор и укажите полученный код.</p>
@@ -199,6 +219,7 @@ export default function AuthPanel() {
           {!session.enrollment_only && (
             <details>
               <summary>Сменить пароль</summary>
+              <p>Идентификатор <code>{session.employee_id}</code></p>
               <form onSubmit={(event) => submit(event, (form) => changePassword(session, form))}>
                 <label>Текущий пароль <input name="current_password" type="password" autoComplete="current-password" required maxLength={256} /></label>
                 <p id="change-password-hint">{PASSWORD_HINT}</p>
@@ -210,18 +231,19 @@ export default function AuthPanel() {
           )}
           {!session.enrollment_only && ["employee", "department_head"].includes(session.role) && (
             <>
-              <MaterialPanel csrf={session.csrf_token} />
-              <BuildPanel csrf={session.csrf_token} />
-              <RagPanel csrf={session.csrf_token} />
-              <PublicationPanel csrf={session.csrf_token} manager={session.role === "department_head"} />
+              <div id="search"><RagPanel csrf={session.csrf_token} /></div>
+              <div id="materials"><MaterialPanel csrf={session.csrf_token} /></div>
+              <div id="build"><BuildPanel csrf={session.csrf_token} /></div>
+              <div id="publication"><PublicationPanel csrf={session.csrf_token} manager={session.role === "department_head"} /></div>
             </>
           )}
           {!session.enrollment_only && session.role === "admin" && (
-            <AdminPanel csrf={session.csrf_token} />
+            <div id="administration"><AdminPanel csrf={session.csrf_token} /></div>
           )}
           {!session.enrollment_only && ["employee", "department_head", "hr"].includes(session.role) && (
-            <HandoffPanel csrf={session.csrf_token} role={session.role} />
+            <div id="handoffs"><HandoffPanel csrf={session.csrf_token} role={session.role} /></div>
           )}
+          {!session.enrollment_only && session.role === "security_auditor" && <AuditPanel />}
           <p><button disabled={busy} onClick={() => void run(() => logout(session))}>Выйти</button></p>
         </>
       ) : (

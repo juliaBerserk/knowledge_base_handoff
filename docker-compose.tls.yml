@@ -1,0 +1,36 @@
+services:
+  db:
+    ports: !reset []
+    entrypoint: ["/bin/bash", "/opt/estafeta/require-production-passwords.sh"]
+    command: ["postgres"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD}
+      ESTAFETA_OWNER_PASSWORD: ${ESTAFETA_OWNER_PASSWORD:?Задайте ESTAFETA_OWNER_PASSWORD}
+      ESTAFETA_APP_PASSWORD: ${ESTAFETA_APP_PASSWORD:?Задайте ESTAFETA_APP_PASSWORD}
+      ESTAFETA_ADMIN_PASSWORD: ${ESTAFETA_ADMIN_PASSWORD:?Задайте ESTAFETA_ADMIN_PASSWORD}
+      ESTAFETA_WORKER_PASSWORD: ${ESTAFETA_WORKER_PASSWORD:?Задайте ESTAFETA_WORKER_PASSWORD}
+    volumes:
+      - ./deploy/postgres/require-production-passwords.sh:/opt/estafeta/require-production-passwords.sh:ro
+
+  backend:
+    environment:
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Задайте APP_SECRET_KEY}
+      AUTH_PUBLIC_ORIGIN: ${AUTH_PUBLIC_ORIGIN:?Задайте AUTH_PUBLIC_ORIGIN}
+      CORS_ORIGINS: ""
+
+  frontend:
+    build:
+      target: tls
+    environment:
+      AUTH_PUBLIC_ORIGIN: ${AUTH_PUBLIC_ORIGIN:?Задайте AUTH_PUBLIC_ORIGIN}
+      NGINX_ENVSUBST_FILTER: '^(AUTH_PUBLIC_ORIGIN|ESTAFETA_TLS_HOST)$'
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes:
+      - type: bind
+        source: ${TLS_CERT_DIR:?Задайте TLS_CERT_DIR}
+        target: /run/estafeta/tls
+        read_only: true
+        bind:
+          create_host_path: false

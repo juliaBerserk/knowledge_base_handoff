@@ -9,6 +9,8 @@ frontend/playwright-report
 **/__pycache__
 **/*.pyc
 .env
+.env.production
+tls
 redaction.local.json
 data
 *.md

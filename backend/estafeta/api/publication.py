@@ -4,7 +4,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from fastapi import APIRouter, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, StrictBool
 
 from estafeta.api.auth import AuthRoute, csrf_valid, reply, session_token
@@ -23,7 +23,7 @@ from estafeta.core.permissions import (
     can_write,
 )
 from estafeta.models import KnowledgeRecord, Material, PublicationSettings
-from estafeta.models.audit import Action
+from estafeta.models.audit import Action, Target
 
 router = APIRouter(prefix="/publication", tags=["publication"], route_class=AuthRoute)
 
@@ -172,6 +172,31 @@ def detail(request: Request, kind: ItemKind, item_id: UUID) -> JSONResponse:
                 ),
             )
         return reply(**jsonable_encoder(result))
+
+
+@router.get("/{kind}/{item_id}/export", response_model=None)
+def export_item(
+    request: Request, kind: ItemKind, item_id: UUID
+) -> PlainTextResponse | JSONResponse:
+    token = session_token(request)
+    if not token:
+        return reply(401, detail="Войдите в систему")
+    with knowledge_transaction(token) as db:
+        if db is None:
+            return reply(403, detail="Экспорт недоступен")
+        item = read_knowledge(db, kind.model, item_id)
+        if item is None or item.cleaned_text is None:
+            return reply(404, detail="Очищенный текст не найден")
+        actor = db.scalar(sa.select(sa.func.knowledge.current_uploader(type_=sa.Uuid())))
+        if actor is None:
+            return reply(403, detail="Экспорт недоступен")
+        target = Target.MATERIAL if kind is ItemKind.MATERIAL else Target.RECORD
+        append_event(db, Action.KNOWLEDGE_EXPORTED, actor_id=actor, target=(target, item_id))
+        return PlainTextResponse(item.cleaned_text, headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'attachment; filename="estafeta-{target.value}-{item_id}.txt"',
+        })
 
 
 @router.post("/{kind}/{item_id}/{operation}")

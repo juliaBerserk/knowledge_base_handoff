@@ -1,70 +1,20 @@
-import { useEffect, useState } from "react";
-
 import AuthPanel from "./AuthPanel";
-
-type Health = {
-  ok: boolean;
-  service: string;
-  database: boolean;
-  vector_extension: boolean;
-};
-
-type HealthState = "loading" | "ok" | "error";
+import SourcePage, { sourceRoute } from "./SourcePage";
 
 export default function App() {
-  const [state, setState] = useState<HealthState>("loading");
-  const [health, setHealth] = useState<Health | null>(null);
-  const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/health")
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Сервис временно недоступен");
-        }
-        return (await response.json()) as Health;
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setHealth(data);
-          setState("ok");
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setState("error");
-          setErrorText(error instanceof Error ? error.message : "Неизвестная ошибка");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  const path = window.location.pathname;
+  const source = sourceRoute(path);
   return (
     <main className="page">
-      <header>
-        <p className="eyebrow">Корпоративные знания</p>
-        <h1>Эстафета</h1>
+      <header className="app-header">
+        <h1><a href="/">Эстафета</a></h1>
       </header>
-      <AuthPanel />
-      <section className="card" aria-live="polite">
-        <h2>Состояние сервиса</h2>
-        {state === "loading" && <p>Проверяем API…</p>}
-        {state === "error" && (
-          <p className="error">
-            API недоступен. {errorText}. Запустите backend или весь стек Docker Compose.
-          </p>
-        )}
-        {state === "ok" && health && (
-          <ul className="status">
-            <li>Сервис: {health.service}</li>
-            <li>База данных: {health.database ? "доступна" : "нет"}</li>
-            <li>Расширение pgvector: {health.vector_extension ? "установлено" : "нет"}</li>
-          </ul>
-        )}
-      </section>
+      {source ? <SourcePage route={source} /> : path === "/" ? <AuthPanel /> : (
+        <section className="card">
+          <h2>Страница не найдена</h2>
+          <a href="/">На главную</a>
+        </section>
+      )}
     </main>
   );
 }

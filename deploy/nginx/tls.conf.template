@@ -1,0 +1,31 @@
+ssl_protocols TLSv1.2 TLSv1.3;
+
+server {
+    listen 80 default_server;
+    server_name _;
+    server_tokens off;
+    return 308 ${AUTH_PUBLIC_ORIGIN}$request_uri;
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    server_tokens off;
+    ssl_reject_handshake on;
+    return 421;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${ESTAFETA_TLS_HOST};
+
+    ssl_certificate /run/estafeta/tls/fullchain.pem;
+    ssl_certificate_key /run/estafeta/tls/privkey.pem;
+    ssl_session_cache shared:estafeta_tls:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    include /etc/nginx/estafeta/server.inc;
+}

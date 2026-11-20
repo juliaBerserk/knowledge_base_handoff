@@ -1,0 +1,22 @@
+#!/bin/sh
+# Docker image запускает этот файл перед подстановкой переменных Nginx.
+case "${AUTH_PUBLIC_ORIGIN:-}" in
+    *[!a-z0-9:/.-]*)
+        echo "AUTH_PUBLIC_ORIGIN содержит недопустимые символы." >&2
+        exit 1
+        ;;
+esac
+origin_pattern='^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[1-9][0-9]{0,4})?$'
+if ! printf '%s\n' "${AUTH_PUBLIC_ORIGIN:-}" | grep -Eq "$origin_pattern"; then
+    echo "Задайте AUTH_PUBLIC_ORIGIN как HTTPS-адрес без пути и завершающего /." >&2
+    exit 1
+fi
+authority="${AUTH_PUBLIC_ORIGIN#https://}"
+ESTAFETA_TLS_HOST="${authority%%:*}"
+export ESTAFETA_TLS_HOST
+for file in fullchain.pem privkey.pem; do
+    if [ ! -s "/run/estafeta/tls/$file" ]; then
+        echo "Для TLS нужен файл /run/estafeta/tls/$file." >&2
+        exit 1
+    fi
+done

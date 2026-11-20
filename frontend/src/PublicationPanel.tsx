@@ -131,14 +131,17 @@ export default function PublicationPanel({ csrf, manager }: { csrf: string; mana
           <p>Автор <code>{detail.author_id}</code></p>
           {detail.category && <p>{CATEGORIES[detail.category]}</p>}
           {typeof detail.confidence === "number" && <p>Уверенность модели {Math.round(detail.confidence * 100)}%</p>}
-          <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{detail.text ?? "Текста нет"}</pre>
+          <pre className="knowledge-text">{detail.text ?? "Текста нет"}</pre>
+          {detail.text !== null && (
+            <p><a href={`/api/${endpoint}/${detail.id}/export`} download>Скачать очищенный текст</a></p>
+          )}
           {detail.source_chunk_id && (
             <button disabled={busy} onClick={() => void run(async () => {
               const result = await request<{ text: string }>(`build/sources/${detail.source_chunk_id}`, csrf);
               setSource(result.text);
             })}>Показать фрагмент-источник</button>
           )}
-          {source && <blockquote style={{ whiteSpace: "pre-wrap" }}>{source}</blockquote>}
+          {source && <blockquote className="knowledge-text">{source}</blockquote>}
           {detail.editable && edit === null && (
             <button disabled={busy} onClick={() => setEdit(detail.text ?? "")}>Править запись</button>
           )}

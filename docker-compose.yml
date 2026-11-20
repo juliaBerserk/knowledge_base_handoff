@@ -129,6 +129,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      target: http
     ports:
       - "127.0.0.1:8080:80"
     depends_on:

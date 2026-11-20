@@ -2,8 +2,8 @@
   color-scheme: light;
   font-family: "Segoe UI", "PT Sans", sans-serif;
   line-height: 1.5;
-  color: #1c1917;
-  background: #f5f1eb;
+  color: #172b36;
+  background: #edf2f4;
 }
 
 * {
@@ -15,17 +15,19 @@ body {
 }
 
 .page {
-  max-width: 40rem;
+  max-width: 72rem;
   margin: 0 auto;
   padding: 3rem 1.25rem;
 }
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.75rem;
-  color: #57534e;
-  margin: 0 0 0.5rem;
+.app-header {
+  border-bottom: 1px solid #c8d5dc;
+  padding-bottom: 0.8rem;
+}
+
+.app-header a {
+  color: #142b3d;
+  text-decoration: none;
 }
 
 h1 {
@@ -33,21 +35,48 @@ h1 {
   margin: 0 0 0.75rem;
 }
 
-.lead,
-h2 {
-  color: #44403c;
+h2, h3 {
+  color: #142b3d;
 }
 
 .card {
   margin-top: 2rem;
   background: #fff;
-  border: 1px solid #e7e5e4;
+  border: 1px solid #c8d5dc;
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
 }
 
-.status {
-  padding-left: 1.1rem;
+.auth-card {
+  max-width: 30rem;
+  margin-inline: auto;
+}
+
+.workspace-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #c8d5dc;
+  margin-bottom: 1rem;
+}
+
+.workspace-nav a {
+  font-weight: 600;
+}
+
+.workspace [id] {
+  scroll-margin-top: 1rem;
+}
+
+a {
+  color: #00536b;
+  text-underline-offset: 0.2em;
+}
+
+:focus-visible {
+  outline: 2px solid #007596;
+  outline-offset: 3px;
 }
 
 .error {
@@ -64,19 +93,37 @@ form label {
   display: block;
 }
 
-input:not([type="checkbox"]) {
+input:not([type="checkbox"]), select, textarea {
   display: block;
   width: 100%;
   padding: 0.5rem;
   font: inherit;
-  border: 1px solid #78716c;
-  border-radius: 4px;
+  border: 1px solid #73818a;
+  border-radius: 6px;
+  color: inherit;
+  background-color: white;
 }
 
 button {
   justify-self: start;
   padding: 0.45rem 0.8rem;
   font: inherit;
+  background-color: #edf5f7;
+  color: #124257;
+  border: 1px solid #a6bec9;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 0.15rem 0.3rem 0.15rem 0;
+}
+
+button:enabled:hover {
+  background-color: #dceef2;
+}
+
+button:disabled {
+  cursor: default;
+  color: #4d5e68;
+  opacity: 0.72;
 }
 
 .material-panel {
@@ -99,4 +146,53 @@ button {
 
 .material-preview {
   margin-top: 1rem;
+}
+
+.knowledge-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background-color: #f5f8fa;
+  border: 1px solid #dbe5ea;
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+}
+
+code {
+  overflow-wrap: anywhere;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border-bottom: 1px solid #dbe5ea;
+  padding: 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background-color: #f5f8fa;
+}
+
+caption {
+  text-align: left;
+  margin-bottom: 0.6rem;
+}
+
+td small {
+  display: block;
+}
+
+@media (max-width: 36rem) {
+  .page { padding: 1.2rem 0.75rem; }
+  .card { margin-top: 1rem; padding: 1rem; }
+  blockquote { margin-inline: 0; }
 }

@@ -334,6 +334,36 @@ def test_successful_foreign_read_is_audited(
         engine.dispose()
 
 
+def test_export_download_checks_permissions_and_audits_only_metadata(
+    data: tuple[dict[str, UUID], dict[str, str]],
+) -> None:
+    ids, tokens = data
+    endpoint = f"/api/publication/records/{ids['published_records']}/export"
+    with TestClient(app, base_url="https://testserver") as client:
+        assert client.get(endpoint).status_code == 401
+        for user, code in [("other_head", 404), ("hr", 403), ("admin", 403)]:
+            client.cookies.set(COOKIE, tokens[user])
+            assert client.get(endpoint).status_code == code
+        client.cookies.set(COOKIE, tokens["successor"])
+        response = client.get(endpoint)
+        assert response.status_code == 200
+        assert response.text == "Текст записи"
+        assert response.headers["content-disposition"].startswith("attachment;")
+        assert response.headers["content-type"].startswith("text/plain")
+        assert response.headers["cache-control"] == "no-store"
+    engine = sa.create_engine(MigrationSettings().database_owner_url)
+    try:
+        with Session(engine) as db:
+            event = db.scalars(sa.select(AuditEvent).where(
+                AuditEvent.action == Action.KNOWLEDGE_EXPORTED,
+                AuditEvent.actor_id == ids["successor"],
+            )).one()
+            assert event.target_id == ids["published_records"]
+            assert event.redaction_kind is None
+    finally:
+        engine.dispose()
+
+
 def test_database_denies_direct_publish_and_copy_without_permission(
     data: tuple[dict[str, UUID], dict[str, str]],
 ) -> None:

@@ -49,7 +49,7 @@ test("интерфейс показывает выдачу, цитату SSE и 
   await panel.getByRole("button", { name: "Спросить ИИ" }).click();
   await expect(panel.getByText("Проверьте журнал.")).toBeVisible();
   await expect(panel.getByRole("link", { name: "Открыть источник" })).toHaveAttribute(
-    "href", "/api/build/sources/chunk",
+    "href", "/sources/chunk",
   );
   await panel.getByText("Оценить ответ").click();
   await panel.getByLabel("Комментарий").fill("Понятно");

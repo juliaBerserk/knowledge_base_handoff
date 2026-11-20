@@ -53,7 +53,7 @@ async function events(response: Response, receive: (event: string, data: Frame) 
 }
 
 function SourceLink({ id }: { id: string }) {
-  return <a href={`/api/build/sources/${id}`} target="_blank" rel="noreferrer">Открыть источник</a>;
+  return <a href={`/sources/${id}`} target="_blank" rel="noreferrer">Открыть источник</a>;
 }
 
 function Rating({ csrf, turn }: { csrf: string; turn: Turn }) {
