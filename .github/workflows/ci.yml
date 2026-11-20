@@ -29,6 +29,7 @@ jobs:
       APP_SECRET_KEY: test-secret-key-not-for-production-use
       DATABASE_URL: postgresql+psycopg://estafeta_app:test@localhost:5432/estafeta
       DATABASE_ADMIN_URL: postgresql+psycopg://estafeta_admin:test@localhost:5432/estafeta
+      DATABASE_WORKER_URL: postgresql+psycopg://estafeta_worker:test@localhost:5432/estafeta
       DATABASE_OWNER_URL: postgresql+psycopg://postgres:test@localhost:5432/estafeta
       RUN_DB_TESTS: "1"
     steps:
@@ -47,6 +48,8 @@ jobs:
               conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
               conn.execute(text("CREATE ROLE estafeta_app LOGIN PASSWORD 'test'"))
               conn.execute(text("CREATE ROLE estafeta_admin LOGIN PASSWORD 'test'"))
+              conn.execute(text("CREATE ROLE estafeta_worker LOGIN PASSWORD 'test'"))
+              conn.execute(text("GRANT estafeta_app TO estafeta_worker WITH INHERIT TRUE, SET FALSE"))
           PY
       - name: Ruff
         run: ruff check estafeta tests alembic/env.py alembic/versions

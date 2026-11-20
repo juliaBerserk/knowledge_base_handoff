@@ -250,7 +250,7 @@ def prune_expired(factory: sessionmaker[Session], settings: Settings, now: datet
 
 
 def load_session(
-    db: Session, settings: Settings, token: str, now: datetime
+    db: Session, settings: Settings, token: str, now: datetime, *, touch: bool = True
 ) -> ActiveSession | None:
     digest = security.token_hash(token)
     employee_id = db.scalar(
@@ -272,7 +272,8 @@ def load_session(
     ).one()
     if employee.role in MANDATORY_TOTP and credential.totp_secret is None:
         session.enrollment_only = True
-    session.last_seen_at = max(now, session.last_seen_at)
+    if touch:
+        session.last_seen_at = max(now, session.last_seen_at)
     return ActiveSession(
         Principal(employee.id, employee.role, employee.corporate_email), credential, session, token
     )

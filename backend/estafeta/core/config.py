@@ -20,12 +20,17 @@ class Settings(BaseSettings):
     app_secret_key: str = Field(min_length=32)
     database_url: str
     database_admin_url: str = ""
+    database_worker_url: str = ""
     cors_origins: str = ""
 
     llm_base_url: str = "http://127.0.0.1:11434/v1"
     llm_model: str = "local"
     llm_api_key: str = ""
     embedding_model: str = "BAAI/bge-m3"
+    embedding_revision: str = ""
+    chunk_size: int = Field(default=900, ge=300, le=1600)
+    chunk_overlap: int = Field(default=160, ge=0, le=299)
+    llm_timeout_seconds: int = Field(default=35, ge=1, le=120)
 
     session_idle_minutes: int = Field(default=30, gt=0)
     session_max_hours: int = Field(default=12, gt=0)
@@ -74,6 +79,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def require_deployment_secret(self) -> "Settings":
+        if self.chunk_overlap > self.chunk_size // 2:
+            raise ValueError("CHUNK_OVERLAP должен быть не больше половины CHUNK_SIZE")
         if (
             self.auth_public_origin.startswith("https://")
             and self.app_secret_key == "dev-secret-key-change-me-32chars-min"

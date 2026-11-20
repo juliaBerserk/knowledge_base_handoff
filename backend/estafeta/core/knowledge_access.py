@@ -16,9 +16,9 @@ from estafeta.models.audit import Action, Target
 
 
 @contextmanager
-def knowledge_transaction(token: str) -> Iterator[Session | None]:
+def knowledge_transaction(token: str, *, touch: bool = True) -> Iterator[Session | None]:
     with get_session_factory().begin() as db:
-        active = load_session(db, get_settings(), token, datetime.now(UTC))
+        active = load_session(db, get_settings(), token, datetime.now(UTC), touch=touch)
         if (
             active is None
             or active.session.enrollment_only

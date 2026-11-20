@@ -9,8 +9,16 @@ const LABELS: Record<string, string> = {
 type Item = { id: string; author_id: string; status: string; actions: string[] };
 type Listing = { items: Item[]; next_after_id: string | null };
 type Detail = {
-  text: string | null; author_id: string;
+  id: string; text: string | null; author_id: string;
   original_id?: string | null; original_author_id?: string | null;
+  source_chunk_id?: string | null; category?: string | null;
+  confidence?: number | null; editable?: boolean;
+};
+
+const CATEGORIES: Record<string, string> = {
+  responsibilities: "Обязанности", processes: "Процессы", cases: "Проблемы и решения",
+  people: "Контакты", systems: "Системы", decisions: "Решения", unfinished: "Незавершённое",
+  faqs: "Частые вопросы", glossary: "Глоссарий", risks: "Риски",
 };
 
 async function request<T>(path: string, csrf: string, body?: object): Promise<T> {
@@ -33,6 +41,8 @@ export default function PublicationPanel({ csrf, manager }: { csrf: string; mana
   const [author, setAuthor] = useState("");
   const [page, setPage] = useState<Listing | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [source, setSource] = useState<string | null>(null);
+  const [edit, setEdit] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -53,6 +63,8 @@ export default function PublicationPanel({ csrf, manager }: { csrf: string; mana
     if (published && author.trim()) query.set("author_id", author.trim());
     if (after) query.set("after_id", after);
     setDetail(null);
+    setSource(null);
+    setEdit(null);
     setPage(await request<Listing>(`${endpoint}?${query}`, csrf));
   }
 
@@ -64,6 +76,15 @@ export default function PublicationPanel({ csrf, manager }: { csrf: string; mana
 
   async function open(id: string) {
     setDetail(await request<Detail>(`${endpoint}/${id}`, csrf));
+    setSource(null);
+    setEdit(null);
+  }
+
+  async function saveEdit(item: Detail, text: string) {
+    const result = await request<{ text: string }>(`build/records/${item.id}/edit`, csrf, { text });
+    setDetail({ ...item, text: result.text });
+    setEdit(null);
+    setNotice("Очищенная правка сохранена");
   }
 
   return (
@@ -108,7 +129,26 @@ export default function PublicationPanel({ csrf, manager }: { csrf: string; mana
         <section>
           <h4>Содержимое</h4>
           <p>Автор <code>{detail.author_id}</code></p>
+          {detail.category && <p>{CATEGORIES[detail.category]}</p>}
+          {typeof detail.confidence === "number" && <p>Уверенность модели {Math.round(detail.confidence * 100)}%</p>}
           <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{detail.text ?? "Текста нет"}</pre>
+          {detail.source_chunk_id && (
+            <button disabled={busy} onClick={() => void run(async () => {
+              const result = await request<{ text: string }>(`build/sources/${detail.source_chunk_id}`, csrf);
+              setSource(result.text);
+            })}>Показать фрагмент-источник</button>
+          )}
+          {source && <blockquote style={{ whiteSpace: "pre-wrap" }}>{source}</blockquote>}
+          {detail.editable && edit === null && (
+            <button disabled={busy} onClick={() => setEdit(detail.text ?? "")}>Править запись</button>
+          )}
+          {detail.editable && edit !== null && (
+            <form onSubmit={(event) => { event.preventDefault(); void run(() => saveEdit(detail, edit)); }}>
+              <label>Текст записи <textarea required maxLength={12000} value={edit}
+                onChange={(event) => setEdit(event.target.value)} /></label>
+              <button disabled={busy}>Сохранить правку</button>
+            </form>
+          )}
           {detail.original_id && (
             <div>
               <p>Оригинал <code>{detail.original_id}</code> · Автор оригинала <code>{detail.original_author_id}</code></p>

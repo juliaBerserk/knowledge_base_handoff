@@ -22,6 +22,7 @@ from estafeta.core.permissions import (
     can_read,
     can_return,
     can_submit,
+    can_write,
 )
 from estafeta.models import KnowledgeRecord, Material, PublicationSettings, Role
 from estafeta.models.audit import Action
@@ -158,7 +159,15 @@ def detail(request: Request, kind: ItemKind, item_id: UUID) -> JSONResponse:
             "author_id": item.author_id,
         }
         if isinstance(item, KnowledgeRecord):
-            result.update(original_id=item.original_id, original_author_id=item.original_author_id)
+            result.update(
+                original_id=item.original_id, original_author_id=item.original_author_id,
+                source_chunk_id=item.source_chunk_id, category=item.category,
+                confidence=item.confidence, manually_edited=item.manually_edited,
+                editable=can_write(
+                    Relation(db.scalar(sa.select(sa.func.knowledge.access_relation(item.space_id)))),
+                    item.status,
+                ),
+            )
         return reply(**jsonable_encoder(result))
 
 

@@ -7,6 +7,7 @@ set -euo pipefail
 APP_PASSWORD="${ESTAFETA_APP_PASSWORD:?ESTAFETA_APP_PASSWORD не задан}"
 OWNER_PASSWORD="${ESTAFETA_OWNER_PASSWORD:?ESTAFETA_OWNER_PASSWORD не задан}"
 ADMIN_PASSWORD="${ESTAFETA_ADMIN_PASSWORD:?ESTAFETA_ADMIN_PASSWORD не задан}"
+WORKER_PASSWORD="${ESTAFETA_WORKER_PASSWORD:?ESTAFETA_WORKER_PASSWORD не задан}"
 
 psql -v ON_ERROR_STOP=1 \
     --username "$POSTGRES_USER" \
@@ -14,12 +15,15 @@ psql -v ON_ERROR_STOP=1 \
     --set=owner_password="$OWNER_PASSWORD" \
     --set=app_password="$APP_PASSWORD" \
     --set=admin_password="$ADMIN_PASSWORD" \
+    --set=worker_password="$WORKER_PASSWORD" \
     --set=db_name="$POSTGRES_DB" <<SQL
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE ROLE estafeta_owner LOGIN PASSWORD :'owner_password';
 CREATE ROLE estafeta_app LOGIN PASSWORD :'app_password';
 CREATE ROLE estafeta_admin LOGIN PASSWORD :'admin_password';
+CREATE ROLE estafeta_worker LOGIN PASSWORD :'worker_password';
+GRANT estafeta_app TO estafeta_worker WITH INHERIT TRUE, SET FALSE;
 
 ALTER DATABASE :"db_name" OWNER TO estafeta_owner;
 SQL
@@ -30,6 +34,7 @@ REVOKE ALL ON DATABASE ${POSTGRES_DB} FROM PUBLIC;
 GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO estafeta_app;
 GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO estafeta_owner;
 GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO estafeta_admin;
+GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO estafeta_worker;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO estafeta_owner;
 GRANT USAGE ON SCHEMA public TO estafeta_app;

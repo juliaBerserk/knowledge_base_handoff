@@ -180,6 +180,7 @@ class KnowledgeRecord(KnowledgeItem, Base):
         sa.CheckConstraint(
             "(original_id IS NULL) = (original_author_id IS NULL)", name="ck_record_origin_pair"
         ),
+        sa.CheckConstraint("confidence BETWEEN 0 AND 1", name="ck_record_confidence"),
     )
 
     space_kind: Mapped[SpaceKind] = mapped_column(enum_type(SpaceKind, "ck_record_space_kind"))
@@ -191,6 +192,12 @@ class KnowledgeRecord(KnowledgeItem, Base):
     original_author_id: Mapped[UUID | None] = mapped_column(
         sa.ForeignKey("employees.id", name="fk_record_original_author_id")
     )
+    source_chunk_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("chunks.id", name="fk_record_source_chunk"), index=True
+    )
+    category: Mapped[str | None] = mapped_column(sa.String(24))
+    confidence: Mapped[float | None]
+    manually_edited: Mapped[bool] = mapped_column(server_default=sa.false())
 
 
 class PublicationSettings(Base):
