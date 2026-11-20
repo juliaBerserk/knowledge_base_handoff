@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from estafeta.models import KnowledgeStatus, SpaceKind
+from estafeta.models import KnowledgeStatus, Role, SpaceKind
 
 
 class Relation(StrEnum):
@@ -56,3 +56,7 @@ def can_archive(relation: Relation, status: KnowledgeStatus, *, manages_position
     if status is KnowledgeStatus.PUBLISHED:
         return manages_position
     return can_write(relation, status)
+
+
+def can_manage_handoffs(role: Role) -> bool:
+    return role in {Role.HR, Role.DEPARTMENT_HEAD}

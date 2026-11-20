@@ -3,6 +3,7 @@ import MaterialPanel from "./MaterialPanel";
 import BuildPanel from "./BuildPanel";
 import PublicationPanel, { PublicationSettingsPanel } from "./PublicationPanel";
 import RagPanel from "./RagPanel";
+import HandoffPanel from "./HandoffPanel";
 
 type Session = {
   employee_id: string;
@@ -241,6 +242,9 @@ export default function AuthPanel() {
           )}
           {!session.enrollment_only && session.role === "admin" && (
             <PublicationSettingsPanel csrf={session.csrf_token} />
+          )}
+          {!session.enrollment_only && ["employee", "department_head", "hr"].includes(session.role) && (
+            <HandoffPanel csrf={session.csrf_token} role={session.role} />
           )}
           <p><button disabled={busy} onClick={() => void run(() => logout(session))}>Выйти</button></p>
         </>

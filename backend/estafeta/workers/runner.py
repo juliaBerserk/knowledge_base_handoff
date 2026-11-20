@@ -1,17 +1,19 @@
 import logging
 import time
 from datetime import UTC, datetime
+from threading import Event, Thread
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from estafeta.auth.service import prune_expired
-from estafeta.core.config import get_settings
+from estafeta.core.config import Settings, get_settings
 from estafeta.core.db import wait_for_db
 from estafeta.indexing.build import Builder
 from estafeta.indexing.providers import BgeM3Embedder, OpenAICompatibleClient
 from estafeta.indexing.queue import LeaseLost, claim_next
+from estafeta.workers.handoffs import scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("estafeta.worker")
@@ -33,6 +35,18 @@ def run() -> None:
     )
     builder = Builder(factory, settings, embedder, client)
     logger.info("Воркер «%s» запущен", settings.app_name)
+    stop = Event()
+    thread = Thread(target=scheduler, args=(factory, stop), name="handoff-scheduler", daemon=True)
+    thread.start()
+    try:
+        work(factory, settings, builder)
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+        engine.dispose()
+
+
+def work(factory: sessionmaker[Session], settings: Settings, builder: Builder) -> None:
     next_cleanup = 0.0
     while True:
         try:

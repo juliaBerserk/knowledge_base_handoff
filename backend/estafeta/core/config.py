@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -32,6 +33,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=160, ge=0, le=299)
     llm_timeout_seconds: int = Field(default=35, ge=1, le=120)
     rag_top_k: int = Field(default=8, ge=1, le=20)
+    handoff_retention: Literal["archive", "delete"] = "archive"
 
     session_idle_minutes: int = Field(default=30, gt=0)
     session_max_hours: int = Field(default=12, gt=0)

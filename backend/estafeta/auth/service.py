@@ -63,6 +63,12 @@ def lock_credential(db: Session, employee_id: UUID) -> Credential | None:
     return db.get(Credential, employee_id, with_for_update=True, populate_existing=True)
 
 
+def inactive(db: Session, credential: Credential) -> bool:
+    return credential.blocked_at is not None or bool(
+        db.scalar(sa.select(sa.func.auth.departure_due(credential.employee_id)))
+    )
+
+
 def revoke_sessions(db: Session, employee_id: UUID) -> None:
     db.execute(sa.delete(AuthSession).where(AuthSession.employee_id == employee_id))
 
@@ -81,7 +87,7 @@ def block_account(db: Session, employee_id: UUID, now: datetime) -> None:
 def issue_invitation(db: Session, employee_id: UUID, now: datetime) -> str | None:
     db.execute(insert(Credential).values(employee_id=employee_id).on_conflict_do_nothing())
     credential = lock_credential(db, employee_id)
-    if credential is None or credential.blocked_at is not None:
+    if credential is None or inactive(db, credential):
         return None
     db.execute(sa.delete(Invitation).where(Invitation.employee_id == employee_id))
     token = security.new_token()
@@ -106,7 +112,7 @@ def redeem_invitation(db: Session, token: str, password: str, now: datetime) -> 
     invitation = db.get(Invitation, digest, populate_existing=True)
     if (
         credential is None
-        or credential.blocked_at is not None
+        or inactive(db, credential)
         or invitation is None
         or invitation.expires_at <= now
     ):
@@ -203,7 +209,7 @@ def login(
 ) -> LoginResult:
     entry = find_login(db, identifier)
     credential = entry[1] if entry else None
-    locked = credential is None or credential.blocked_at is not None or is_locked(credential, now)
+    locked = credential is None or inactive(db, credential) or is_locked(credential, now)
     password_hash = credential.password_hash if credential is not None and not locked else None
     valid_password = provider.verify(password, password_hash)
     if entry is None or locked:
@@ -222,6 +228,8 @@ def login(
             return LoginResult()
         credential.totp_last_step = step
     clear_failures(credential)
+    if inactive(db, credential):
+        return LoginResult()
     enroll = principal.role in MANDATORY_TOTP and credential.totp_secret is None
     return LoginResult(
         token=create_session(db, principal.employee_id, now, enroll),
@@ -260,7 +268,7 @@ def load_session(
         return None
     credential = lock_credential(db, employee_id)
     session = db.get(AuthSession, digest, populate_existing=True)
-    if credential is None or credential.blocked_at is not None or session is None:
+    if credential is None or session is None or inactive(db, credential):
         return None
     if session_expired(session, settings, now):
         db.delete(session)

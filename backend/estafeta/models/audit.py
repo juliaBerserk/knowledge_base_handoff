@@ -28,6 +28,12 @@ class Action(StrEnum):
     KNOWLEDGE_COPIED = "knowledge_copied"
     KNOWLEDGE_EXPORTED = "knowledge_exported"
     AI_QUESTION = "ai_question"
+    HANDOFF_CREATED = "handoff_created"
+    HANDOFF_CANCELLED = "handoff_cancelled"
+    HANDOFF_ACTIVATED = "handoff_activated"
+    HANDOFF_REVIEW_CLOSED = "handoff_review_closed"
+    HANDOFF_CONFLICT = "handoff_conflict"
+    EMPLOYEE_TRANSFERRED = "employee_transferred"
 
 
 class Outcome(StrEnum):
@@ -43,6 +49,7 @@ class Target(StrEnum):
     RECORD = "record"
     SPACE = "space"
     CHAT = "chat"
+    HANDOFF = "handoff"
 
 
 class AuditEvent(Base):

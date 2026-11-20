@@ -6,6 +6,7 @@ from estafeta.core.permissions import (
     Relation,
     can_archive,
     can_copy,
+    can_manage_handoffs,
     can_publish,
     can_read,
     can_return,
@@ -13,6 +14,7 @@ from estafeta.core.permissions import (
     can_write,
 )
 from estafeta.models import KnowledgeStatus as Status
+from estafeta.models import Role
 from estafeta.models import SpaceKind as Space
 
 PERSONAL_READ = {
@@ -38,6 +40,11 @@ def test_read_and_copy_matrix(relation: Relation, kind: Space, status: Status) -
 @pytest.mark.parametrize(("relation", "status"), product(Relation, Status))
 def test_write_matrix(relation: Relation, status: Status) -> None:
     assert can_write(relation, status) == ((relation, status) == (Relation.OWNER, Status.DRAFT))
+
+
+@pytest.mark.parametrize("role", list(Role))
+def test_can_manage_handoffs(role: Role) -> None:
+    assert can_manage_handoffs(role) == (role in {Role.HR, Role.DEPARTMENT_HEAD})
 
 
 @pytest.mark.parametrize(

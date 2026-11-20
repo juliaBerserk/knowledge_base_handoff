@@ -8,6 +8,7 @@ from estafeta.models import Base
 from estafeta.models import audit as _audit_models  # noqa: F401
 from estafeta.models import auth as _auth_models  # noqa: F401
 from estafeta.models import chat as _chat_models  # noqa: F401
+from estafeta.models import handoff as _handoff_models  # noqa: F401
 from estafeta.models import indexing as _index_models  # noqa: F401
 
 config = context.config

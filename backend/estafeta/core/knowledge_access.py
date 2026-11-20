@@ -16,20 +16,26 @@ from estafeta.models.audit import Action, Target
 
 
 @contextmanager
-def knowledge_transaction(token: str, *, touch: bool = True) -> Iterator[Session | None]:
+def account_transaction(
+    token: str, roles: frozenset[Role], *, touch: bool = True
+) -> Iterator[Session | None]:
     with get_session_factory().begin() as db:
         active = load_session(db, get_settings(), token, datetime.now(UTC), touch=touch)
-        if (
-            active is None
-            or active.session.enrollment_only
-            or active.principal.role not in {Role.EMPLOYEE, Role.DEPARTMENT_HEAD}
-        ):
+        if active is None or active.session.enrollment_only or active.principal.role not in roles:
             yield None
             return
         db.execute(
             sa.text("SELECT set_config('app.user_id', :user_id, true)"),
             {"user_id": str(active.principal.employee_id)},
         )
+        yield db
+
+
+@contextmanager
+def knowledge_transaction(token: str, *, touch: bool = True) -> Iterator[Session | None]:
+    with account_transaction(
+        token, frozenset({Role.EMPLOYEE, Role.DEPARTMENT_HEAD}), touch=touch
+    ) as db:
         yield db
 
 
