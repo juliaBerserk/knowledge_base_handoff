@@ -14,7 +14,14 @@ from estafeta.core.config import get_settings
 from estafeta.core.knowledge_access import account_transaction
 from estafeta.core.permissions import Relation, can_manage_handoffs, can_read
 from estafeta.indexing.extraction import Category
-from estafeta.models import KnowledgeRecord, KnowledgeSpace, KnowledgeStatus, Material, Role
+from estafeta.models import (
+    KnowledgeRecord,
+    KnowledgeSpace,
+    KnowledgeStatus,
+    Material,
+    PublicationSettings,
+    Role,
+)
 from estafeta.models.audit import Action, Target
 from estafeta.models.handoff import Handoff
 
@@ -58,6 +65,7 @@ def schedule(request: Request, body: ScheduleBody) -> JSONResponse:
         if db is None:
             return reply(403, detail="Создать эстафету может HR или руководитель отдела")
         kind = "transfer" if body.target_position_id is not None else "departure"
+        retention = db.scalar(sa.select(PublicationSettings.handoff_retention))
         created = db.scalar(
             sa.select(
                 sa.func.knowledge.schedule_handoff(
@@ -67,7 +75,7 @@ def schedule(request: Request, body: ScheduleBody) -> JSONResponse:
                     body.successor_id,
                     body.target_position_id,
                     body.effective_at,
-                    get_settings().handoff_retention,
+                    retention or get_settings().handoff_retention,
                 )
             )
         )
@@ -146,6 +154,30 @@ def options(request: Request) -> JSONResponse:
             return reply(403, detail="Справочник недоступен")
         data = db.scalar(sa.select(sa.func.knowledge.handoff_options(type_=JSONB())))
         return reply(**data) if data is not None else reply(403, detail="Справочник недоступен")
+
+
+@router.get("/summary")
+def summary(request: Request) -> JSONResponse:
+    with account_transaction(session_token(request), MANAGERS) as db:
+        if db is None:
+            return reply(403, detail="Сводка доступна HR и руководителю отдела")
+        grouped = db.execute(
+            sa.select(
+                Handoff.kind,
+                Handoff.status,
+                sa.func.count().label("count"),
+            ).group_by(Handoff.kind, Handoff.status)
+        ).mappings()
+        missing = db.scalar(
+            sa.select(sa.func.count())
+            .select_from(Handoff)
+            .where(
+                Handoff.kind == "departure",
+                Handoff.status.in_(("review", "completed")),
+                ~Handoff.successor_assigned,
+            )
+        )
+        return reply(counts=[dict(row) for row in grouped], without_successor=missing)
 
 
 @router.get("/{handoff_id}")

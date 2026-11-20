@@ -217,6 +217,12 @@ def test_departure_cutoff_successor_and_retention(
         assert overview["completeness"]["people"] == 1
         assert overview["completeness"]["risks"] == 1
         assert "Содержимое" not in str(overview)
+        assert client.get("/api/handoffs/summary").json() == {
+            "counts": [{"kind": "departure", "status": "scheduled", "count": 1}],
+            "without_successor": 0,
+        }
+        sign(client, tokens, "outsider")
+        assert client.get("/api/handoffs/summary").json()["counts"] == []
         sign(client, tokens, "employee")
         assert client.get(detail).json()["completeness"]["people"] == 1
         sign(client, tokens, "successor")

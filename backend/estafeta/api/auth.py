@@ -15,10 +15,11 @@ from starlette.responses import Response
 
 from estafeta.auth import security, service
 from estafeta.auth.mail import send_invitation
+from estafeta.core.administration import admin_transaction, issue_admin_invitation
 from estafeta.core.audit import append_event
 from estafeta.core.config import Settings, get_settings
-from estafeta.core.db import get_admin_session_factory, get_session_factory
-from estafeta.models import Employee, Role
+from estafeta.core.db import get_session_factory
+from estafeta.models import Employee
 from estafeta.models.audit import Action, Outcome, Target
 
 COOKIE = "__Host-estafeta_session"
@@ -276,34 +277,19 @@ def invite(request: Request, employee_id: UUID, body: InviteBody) -> JSONRespons
     token = session_token(request)
     if not csrf_valid(request, settings, token):
         return reply(403, detail="Не удалось проверить подлинность запроса")
-    if not settings.database_admin_url:
-        return reply(503, detail="Подключение к базе для администрирования не настроено")
-    now = datetime.now(UTC)
-    with get_admin_session_factory().begin() as db:
-        role_matches = db.scalar(
-            sa.text("SELECT current_user = 'estafeta_admin' AND session_user = 'estafeta_admin'")
-        )
-        if not role_matches:
-            return reply(503, detail="Ошибка настройки роли администрирования")
-        # Сериализуем выдачу ссылок: два администратора могут выбрать друг друга.
-        db.execute(sa.select(sa.func.pg_advisory_xact_lock(317001, 3)))
-        active = service.load_session(db, settings, token, now)
-        if active is None:
-            return reply(401, detail="Сессия завершена. Войдите снова")
-        if active.session.enrollment_only or active.principal.role is not Role.ADMIN:
-            return reply(403, detail="Выпустить ссылку может администратор с настроенной 2FA")
+    with admin_transaction(token, serialize=True) as (db, actor):
         target = db.execute(
             sa.select(Employee.corporate_email).where(Employee.id == employee_id)
         ).one_or_none()
         if target is None:
             return reply(404, detail="Сотрудник не найден")
-        invitation = service.issue_invitation(db, employee_id, now)
+        invitation = issue_admin_invitation(db, employee_id)
         if invitation is None:
             return reply(409, detail="Учётная запись сотрудника отключена")
         append_event(
             db,
             Action.INVITATION_ISSUED,
-            actor_id=active.principal.employee_id,
+            actor_id=actor,
             target=(Target.EMPLOYEE, employee_id),
         )
     link = security.invitation_link(settings.auth_public_origin, invitation)

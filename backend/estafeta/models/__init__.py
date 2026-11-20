@@ -206,7 +206,13 @@ class KnowledgeRecord(KnowledgeItem, Base):
 
 class PublicationSettings(Base):
     __tablename__ = "publication_settings"
-    __table_args__ = (sa.CheckConstraint("id = 1", name="ck_publication_singleton"),)
+    __table_args__ = (
+        sa.CheckConstraint("id = 1", name="ck_publication_singleton"),
+        sa.CheckConstraint(
+            "handoff_retention IN ('archive','delete')", name="ck_publication_retention"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(sa.SmallInteger, primary_key=True)
     review_required: Mapped[bool] = mapped_column(server_default=sa.true())
+    handoff_retention: Mapped[str | None] = mapped_column(sa.String(8))

@@ -34,6 +34,11 @@ class Action(StrEnum):
     HANDOFF_REVIEW_CLOSED = "handoff_review_closed"
     HANDOFF_CONFLICT = "handoff_conflict"
     EMPLOYEE_TRANSFERRED = "employee_transferred"
+    ACCOUNT_CREATED = "account_created"
+    ACCOUNTS_IMPORTED = "accounts_imported"
+    DEPARTMENT_CREATED = "department_created"
+    POSITION_CREATED = "position_created"
+    ADMIN_SETTINGS_CHANGED = "admin_settings_changed"
 
 
 class Outcome(StrEnum):
@@ -50,6 +55,8 @@ class Target(StrEnum):
     SPACE = "space"
     CHAT = "chat"
     HANDOFF = "handoff"
+    DEPARTMENT = "department"
+    POSITION = "position"
 
 
 class AuditEvent(Base):

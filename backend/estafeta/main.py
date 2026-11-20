@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from estafeta.api.administration import router as administration_router
 from estafeta.api.audit import router as audit_router
 from estafeta.api.auth import router as auth_router
 from estafeta.api.build import router as build_router
@@ -39,3 +40,4 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(build_router, prefix="/api")
 app.include_router(rag_router, prefix="/api")
 app.include_router(handoffs_router, prefix="/api")
+app.include_router(administration_router, prefix="/api")

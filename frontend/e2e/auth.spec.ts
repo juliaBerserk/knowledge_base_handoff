@@ -28,15 +28,15 @@ test("первый администратор задаёт пароль и вх�
   await page.getByLabel("Пароль", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Войти" }).click();
   await expect(page.getByText("Для входа настройте двухфакторную защиту.")).toBeVisible();
-  const issueInvitation = page.getByRole("button", { name: "Выпустить ссылку" });
-  await expect(issueInvitation).toHaveCount(0);
+  const administration = page.getByRole("heading", { name: "Администрирование" });
+  await expect(administration).toHaveCount(0);
 
   await page.getByRole("button", { name: "Настроить двухфакторную защиту" }).click();
   const key = await page.getByLabel("Ключ настройки").inputValue();
   const step = Math.floor(Date.now() / 30_000);
   await page.getByLabel("Код из приложения").fill(totp(key, step));
   await page.getByRole("button", { name: "Подтвердить" }).click();
-  await expect(issueInvitation).toBeVisible();
+  await expect(administration).toBeVisible();
 
   await page.getByRole("button", { name: "Выйти" }).click();
   await expect(page.getByRole("heading", { name: "Вход" })).toBeVisible();
@@ -45,5 +45,5 @@ test("первый администратор задаёт пароль и вх�
   await page.getByRole("button", { name: "Войти" }).click();
   await page.getByLabel("Код из приложения").fill(totp(key, step + 1));
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(issueInvitation).toBeVisible();
+  await expect(administration).toBeVisible();
 });

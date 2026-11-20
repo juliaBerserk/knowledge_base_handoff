@@ -16,6 +16,7 @@ type Options = {
   positions: { id: string; title: string; department: string }[];
 };
 type Hint = { id: string; kind: string; category: string | null; excerpt: string | null };
+type Overview = { counts: { kind: string; status: string; count: number }[]; without_successor: number };
 
 const STATUSES: Record<string, string> = {
   scheduled: "Запланировано", review: "На разборе", completed: "Завершено",
@@ -57,6 +58,7 @@ export default function HandoffPanel({ csrf, role }: { csrf: string; role: strin
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [overview, setOverview] = useState<Overview | null>(null);
 
   async function run(task: () => Promise<void>) {
     setBusy(true);
@@ -116,8 +118,22 @@ export default function HandoffPanel({ csrf, role }: { csrf: string; role: strin
           setOptions(await api<Options>("/options", csrf));
         })}>Создать эстафету или перевод</button>
       )}
+      {manages && (
+        <button disabled={busy} onClick={() => void run(async () => {
+          setOverview(await api<Overview>("/summary", csrf));
+        })}>Сводка по эстафетам</button>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {overview && <section>
+        <h4>Сводка по эстафетам</h4>
+        <p>Увольнения без назначенного преемника: {overview.without_successor}</p>
+        {overview.counts.length > 0 ? <ul>{overview.counts.map((item) => (
+          <li key={`${item.kind}-${item.status}`}>
+            {item.kind === "departure" ? "Увольнение" : "Перевод"} · {STATUSES[item.status]} · {item.count}
+          </li>
+        ))}</ul> : <p>Эстафет пока нет.</p>}
+      </section>}
       {options && (
         <form onSubmit={schedule}>
           <label>Действие <select value={operation} disabled={busy}

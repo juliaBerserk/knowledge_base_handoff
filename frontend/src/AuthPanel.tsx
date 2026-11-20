@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import MaterialPanel from "./MaterialPanel";
 import BuildPanel from "./BuildPanel";
-import PublicationPanel, { PublicationSettingsPanel } from "./PublicationPanel";
+import PublicationPanel from "./PublicationPanel";
+import AdminPanel from "./AdminPanel";
 import RagPanel from "./RagPanel";
 import HandoffPanel from "./HandoffPanel";
 
@@ -61,7 +62,6 @@ export default function AuthPanel() {
   const [loginId, setLoginId] = useState("");
   const [needsCode, setNeedsCode] = useState(false);
   const [setupKey, setSetupKey] = useState("");
-  const [issuedLink, setIssuedLink] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -93,7 +93,6 @@ export default function AuthPanel() {
         if (reason.status === 401 && session) {
           setSession(null);
           setSetupKey("");
-          setIssuedLink("");
         }
         setError(reason.message);
       } else {
@@ -119,7 +118,6 @@ export default function AuthPanel() {
     const data = await auth<{ login_id: string }>("redeem", { token: invite, password });
     setSession(null);
     setSetupKey("");
-    setIssuedLink("");
     setInvite(null);
     setLoginId(data.login_id);
     setNeedsCode(false);
@@ -148,22 +146,10 @@ export default function AuthPanel() {
     setNotice("Двухфакторная защита включена");
   }
 
-  async function issue(active: Session, form: FormData) {
-    setIssuedLink("");
-    const id = encodeURIComponent(field(form, "employee_id").trim());
-    const sendEmail = form.has("send_email");
-    const data = await auth<{ url: string; delivered: boolean }>(
-      `invitations/${id}`, { send_email: sendEmail }, active.csrf_token,
-    );
-    setIssuedLink(data.url);
-    if (sendEmail) setNotice(data.delivered ? "Письмо отправлено" : "Скопируйте и передайте ссылку");
-  }
-
   async function logout(active: Session) {
     await auth("logout", {}, active.csrf_token);
     setSession(null);
     setSetupKey("");
-    setIssuedLink("");
   }
 
   async function changePassword(active: Session, form: FormData) {
@@ -179,7 +165,6 @@ export default function AuthPanel() {
     if (!loginId) setLoginId(active.employee_id);
     setSession(null);
     setSetupKey("");
-    setIssuedLink("");
     setNeedsCode(false);
     setNotice("Пароль изменён. Войдите с новым паролем.");
   }
@@ -211,15 +196,6 @@ export default function AuthPanel() {
               Настроить двухфакторную защиту
             </button>
           )}
-          {!session.enrollment_only && session.role === "admin" && (
-            <form onSubmit={(event) => submit(event, (form) => issue(session, form))}>
-              <h3>Приглашение или восстановление</h3>
-              <label>Идентификатор сотрудника <input name="employee_id" required /></label>
-              <label><input name="send_email" type="checkbox" defaultChecked /> Отправить на корпоративную почту</label>
-              <button disabled={busy}>Выпустить ссылку</button>
-              {issuedLink && <label>Одноразовая ссылка <input readOnly value={issuedLink} /></label>}
-            </form>
-          )}
           {!session.enrollment_only && (
             <details>
               <summary>Сменить пароль</summary>
@@ -241,7 +217,7 @@ export default function AuthPanel() {
             </>
           )}
           {!session.enrollment_only && session.role === "admin" && (
-            <PublicationSettingsPanel csrf={session.csrf_token} />
+            <AdminPanel csrf={session.csrf_token} />
           )}
           {!session.enrollment_only && ["employee", "department_head", "hr"].includes(session.role) && (
             <HandoffPanel csrf={session.csrf_token} role={session.role} />

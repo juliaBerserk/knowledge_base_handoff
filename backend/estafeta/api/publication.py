@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
@@ -9,10 +8,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictBool
 
 from estafeta.api.auth import AuthRoute, csrf_valid, reply, session_token
-from estafeta.auth.service import load_session
+from estafeta.core.administration import admin_transaction
 from estafeta.core.audit import append_event
 from estafeta.core.config import get_settings
-from estafeta.core.db import get_admin_session_factory
 from estafeta.core.knowledge_access import knowledge_transaction, read_knowledge
 from estafeta.core.permissions import (
     Relation,
@@ -24,7 +22,7 @@ from estafeta.core.permissions import (
     can_submit,
     can_write,
 )
-from estafeta.models import KnowledgeRecord, Material, PublicationSettings, Role
+from estafeta.models import KnowledgeRecord, Material, PublicationSettings
 from estafeta.models.audit import Action
 
 router = APIRouter(prefix="/publication", tags=["publication"], route_class=AuthRoute)
@@ -160,11 +158,16 @@ def detail(request: Request, kind: ItemKind, item_id: UUID) -> JSONResponse:
         }
         if isinstance(item, KnowledgeRecord):
             result.update(
-                original_id=item.original_id, original_author_id=item.original_author_id,
-                source_chunk_id=item.source_chunk_id, category=item.category,
-                confidence=item.confidence, manually_edited=item.manually_edited,
+                original_id=item.original_id,
+                original_author_id=item.original_author_id,
+                source_chunk_id=item.source_chunk_id,
+                category=item.category,
+                confidence=item.confidence,
+                manually_edited=item.manually_edited,
                 editable=can_write(
-                    Relation(db.scalar(sa.select(sa.func.knowledge.access_relation(item.space_id)))),
+                    Relation(
+                        db.scalar(sa.select(sa.func.knowledge.access_relation(item.space_id)))
+                    ),
                     item.status,
                 ),
             )
@@ -225,18 +228,7 @@ def publication_settings(request: Request, body: ReviewSetting | None = None) ->
         return reply(401, detail="Войдите в систему")
     if request.method == "POST" and (body is None or not csrf_valid(request, settings, token)):
         return reply(403, detail="Не удалось проверить подлинность запроса")
-    if not settings.database_admin_url:
-        return reply(503, detail="Подключение для администрирования не настроено")
-    with get_admin_session_factory().begin() as db:
-        if db.scalar(sa.text("SELECT current_user")) != "estafeta_admin":
-            return reply(503, detail="Ошибка настройки роли администрирования")
-        active = load_session(db, settings, token, datetime.now(UTC))
-        if (
-            active is None
-            or active.session.enrollment_only
-            or active.principal.role is not Role.ADMIN
-        ):
-            return reply(403, detail="Настройка доступна администратору с настроенной 2FA")
+    with admin_transaction(token) as (db, actor):
         value = db.scalar(sa.select(PublicationSettings.review_required))
         if request.method == "POST" and body is not None:
             changed = db.execute(
@@ -245,8 +237,6 @@ def publication_settings(request: Request, body: ReviewSetting | None = None) ->
                 .values(review_required=body.review_required)
             )
             if changed.rowcount:
-                append_event(
-                    db, Action.PUBLICATION_SETTINGS_CHANGED, actor_id=active.principal.employee_id
-                )
+                append_event(db, Action.PUBLICATION_SETTINGS_CHANGED, actor_id=actor)
             value = body.review_required
         return reply(review_required=value)
