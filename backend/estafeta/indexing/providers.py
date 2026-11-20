@@ -1,5 +1,8 @@
 import json
-from collections.abc import Sequence
+from collections.abc import Generator, Iterator, Sequence
+from dataclasses import dataclass
+from hashlib import sha256
+from time import monotonic
 from typing import Protocol
 
 import httpx
@@ -15,6 +18,36 @@ class Embedder(Protocol):
 
 class LLMClient(Protocol):
     def complete(self, system: str, user: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class Delta:
+    text: str
+    model: str
+
+
+class StreamingLLMClient(Protocol):
+    def stream(self, system: str, user: str) -> Generator[Delta, None, None]: ...
+
+
+def embedding_key(model: str, revision: str) -> str:
+    return sha256(json.dumps([model, revision]).encode()).hexdigest()
+
+
+def event_lines(response: httpx.Response) -> Iterator[bytes]:
+    pending = bytearray()
+    received = 0
+    deadline = monotonic() + 90
+    for block in response.iter_bytes():
+        received += len(block)
+        if received > 256_000 or monotonic() > deadline:
+            raise ProviderError("Поток модели превышает лимит")
+        pending.extend(block)
+        lines = pending.split(b"\n")
+        pending = lines.pop()
+        yield from lines
+    if pending:
+        yield pending
 
 
 class BgeM3Embedder:
@@ -45,6 +78,41 @@ class OpenAICompatibleClient:
         self.model = model
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self.client = httpx.Client(headers=headers, timeout=timeout, trust_env=False)
+
+    def stream(self, system: str, user: str) -> Generator[Delta, None, None]:
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0,
+            "max_tokens": 1200,
+            "stream": True,
+        }
+        model = self.model
+        try:
+            with self.client.stream("POST", self.endpoint, json=payload) as response:
+                response.raise_for_status()
+                for line in event_lines(response):
+                    if not line.startswith(b"data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == b"[DONE]":
+                        return
+                    event = json.loads(data)
+                    reported = event.get("model")
+                    if isinstance(reported, str) and 0 < len(reported) <= 256:
+                        model = reported
+                    choices = event.get("choices", [])
+                    if not choices:
+                        continue
+                    first = choices[0]
+                    content = first.get("delta", {}).get("content")
+                    if isinstance(content, str) and content:
+                        yield Delta(content, model)
+                    if first.get("finish_reason") == "stop":
+                        return
+                raise ProviderError("Поток модели оборвался")
+        except (httpx.HTTPError, KeyError, ValueError, IndexError, TypeError, AttributeError):
+            raise ProviderError("Не удалось получить результат от модели") from None
 
     def complete(self, system: str, user: str) -> str:
         payload = {

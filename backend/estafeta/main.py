@@ -8,6 +8,7 @@ from estafeta.api.health import router as health_router
 from estafeta.api.materials import router as materials_router
 from estafeta.api.publication import router as publication_router
 from estafeta.api.publication import settings_router
+from estafeta.api.rag import router as rag_router
 from estafeta.core.config import get_settings
 
 settings = get_settings()
@@ -35,3 +36,4 @@ app.include_router(materials_router, prefix="/api")
 app.include_router(publication_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(build_router, prefix="/api")
+app.include_router(rag_router, prefix="/api")

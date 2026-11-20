@@ -13,7 +13,7 @@ from estafeta.core.config import Settings
 from estafeta.core.permissions import Relation, can_read, can_write
 from estafeta.indexing.chunking import Fragment, split_text
 from estafeta.indexing.extraction import PROMPT_VERSION, Entry, extract_batch
-from estafeta.indexing.providers import Embedder, LLMClient, ProviderError
+from estafeta.indexing.providers import Embedder, LLMClient, ProviderError, embedding_key
 from estafeta.indexing.queue import Claim, guard
 from estafeta.ingest.repository import current_uploader, personal_space
 from estafeta.models import KnowledgeRecord, KnowledgeStatus, Material, SpaceKind
@@ -51,7 +51,7 @@ def build_fingerprint(source_hash: str, settings: Settings) -> str:
         json.dumps(
             [
                 source_hash,
-                "chunker-v1",
+                "chunker-v2",
                 settings.chunk_size,
                 settings.chunk_overlap,
                 settings.embedding_model,
@@ -101,6 +101,7 @@ def persist(
     fragments: list[Fragment],
     vectors: list[list[float]],
     entries: list[tuple[int, Entry]],
+    model_key: str,
 ) -> None:
     if digest(fetch_source(db, actor, material_id)) != source_hash:
         raise SourceChanged
@@ -128,6 +129,7 @@ def persist(
                 "start_offset": fragment.start,
                 "end_offset": fragment.end,
                 "embedding": vector,
+                "embedding_key": model_key,
                 "source_hash": source_hash,
                 "fingerprint": fingerprint,
             }
@@ -246,6 +248,7 @@ class Builder:
                 fragments,
                 vectors,
                 entries,
+                embedding_key(self.settings.embedding_model, self.settings.embedding_revision),
             )
         return True
 

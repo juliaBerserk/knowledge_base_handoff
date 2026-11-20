@@ -11,5 +11,5 @@ def test_material_revision_follows_audit() -> None:
     script = ScriptDirectory.from_config(config)
     head = script.get_revision("head")
     assert head is not None
-    assert head.revision == "0008_indexing"
-    assert head.down_revision == "0007_publication"
+    assert head.revision == "0009_rag"
+    assert head.down_revision == "0008_indexing"

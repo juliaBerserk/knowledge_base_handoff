@@ -70,6 +70,7 @@ class Chunk(Identified, Base):
     fingerprint: Mapped[str] = mapped_column(sa.String(64))
     active: Mapped[bool] = mapped_column(server_default=sa.true())
     embedding: Mapped[list[float]] = mapped_column(Vector(1024))
+    embedding_key: Mapped[str | None] = mapped_column(sa.String(64))
     search_vector: Mapped[str] = mapped_column(
         TSVECTOR, sa.Computed("to_tsvector('russian'::regconfig, text)", persisted=True)
     )

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=900, ge=300, le=1600)
     chunk_overlap: int = Field(default=160, ge=0, le=299)
     llm_timeout_seconds: int = Field(default=35, ge=1, le=120)
+    rag_top_k: int = Field(default=8, ge=1, le=20)
 
     session_idle_minutes: int = Field(default=30, gt=0)
     session_max_hours: int = Field(default=12, gt=0)

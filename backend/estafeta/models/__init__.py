@@ -168,6 +168,10 @@ class Material(KnowledgeItem, Base):
         enum_type(KnowledgeStatus, "ck_material_status")
     )
     cleaned_text: Mapped[str | None] = mapped_column(sa.Text)
+    indexed_text_hash: Mapped[str | None] = mapped_column(
+        sa.String(64),
+        sa.Computed("knowledge.text_sha256(cleaned_text)", persisted=True),
+    )
     source_kind: Mapped[SourceKind | None] = mapped_column(
         enum_type(SourceKind, "ck_material_source_kind")
     )

@@ -20,7 +20,9 @@ COPY backend/alembic /app/alembic
 EXPOSE 8000
 CMD ["uvicorn", "estafeta.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-FROM base AS worker
+FROM base AS models
 RUN pip install --no-cache-dir torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir '.[worker]'
+
+FROM models AS worker
 CMD ["python", "-m", "estafeta.workers.runner"]

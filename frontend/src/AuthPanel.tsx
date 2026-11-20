@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import MaterialPanel from "./MaterialPanel";
 import BuildPanel from "./BuildPanel";
 import PublicationPanel, { PublicationSettingsPanel } from "./PublicationPanel";
+import RagPanel from "./RagPanel";
 
 type Session = {
   employee_id: string;
@@ -234,6 +235,7 @@ export default function AuthPanel() {
             <>
               <MaterialPanel csrf={session.csrf_token} />
               <BuildPanel csrf={session.csrf_token} />
+              <RagPanel csrf={session.csrf_token} />
               <PublicationPanel csrf={session.csrf_token} manager={session.role === "department_head"} />
             </>
           )}
