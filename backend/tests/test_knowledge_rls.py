@@ -5,13 +5,16 @@ from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
+from fastapi.testclient import TestClient
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
+from estafeta.api.auth import COOKIE
 from estafeta.auth import security
-from estafeta.core.config import MigrationSettings
+from estafeta.core.config import MigrationSettings, get_settings
 from estafeta.core.db import get_admin_session_factory, get_session_factory
 from estafeta.core.knowledge_access import knowledge_transaction, read_knowledge
+from estafeta.main import app
 from estafeta.models import (
     Department,
     Employee,
@@ -30,7 +33,7 @@ from estafeta.models.auth import AuthSession, Credential
 pytestmark = pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="нужен PostgreSQL")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def data() -> Iterator[tuple[dict[str, UUID], dict[str, str]]]:
     engine = sa.create_engine(MigrationSettings().database_owner_url)
     ids: dict[str, UUID] = {}
@@ -141,6 +144,7 @@ def data() -> Iterator[tuple[dict[str, UUID], dict[str, str]]]:
                     space_kind=space_kind,
                     status=status,
                     author_id=ids["departed" if space_name == "handoff" else "owner"],
+                    **({"cleaned_text": "Текст записи"} if model is KnowledgeRecord else {}),
                 )
                 db.add(item)
                 db.flush()
@@ -150,6 +154,17 @@ def data() -> Iterator[tuple[dict[str, UUID], dict[str, str]]]:
         yield ids, tokens
     finally:
         with Session(engine) as db, db.begin():
+            db.execute(
+                sa.delete(KnowledgeRecord).where(
+                    KnowledgeRecord.author_id.in_(employees),
+                    KnowledgeRecord.original_id.is_not(None),
+                )
+            )
+            db.execute(
+                sa.delete(KnowledgeSpace).where(
+                    KnowledgeSpace.employee_id.in_(employees), KnowledgeSpace.id.not_in(spaces)
+                )
+            )
             for model, values in (
                 (Material, items),
                 (KnowledgeRecord, items),
@@ -162,6 +177,80 @@ def data() -> Iterator[tuple[dict[str, UUID], dict[str, str]]]:
             db.execute(sa.delete(Credential).where(Credential.employee_id.in_(employees)))
             db.execute(sa.delete(Employee).where(Employee.id.in_(employees)))
         engine.dispose()
+
+
+def test_publication_review_archive_and_copy(
+    data: tuple[dict[str, UUID], dict[str, str]],
+) -> None:
+    ids, tokens = data
+    key = get_settings().app_secret_key
+    record_id = ids["draft_records"]
+    endpoint = f"/api/publication/records/{record_id}"
+    settings = "/api/settings/publication"
+    with TestClient(app, base_url="https://testserver") as client:
+
+        def login(actor: str) -> dict[str, str]:
+            client.cookies.set(COOKIE, tokens[actor])
+            return {"X-CSRF-Token": security.csrf_token(key, tokens[actor])}
+
+        owner = login("owner")
+        assert client.post(endpoint + "/publish", json={}, headers=owner).status_code == 409
+        assert client.post(endpoint + "/submit", json={}).status_code == 403
+        assert client.post(endpoint + "/submit", json={}, headers=owner).status_code == 200
+        other = login("other_head")
+        assert client.post(endpoint + "/publish", json={}, headers=other).status_code == 404
+        reviewer = login("head")
+        review = client.get("/api/publication/records", params={"scope": "review"})
+        assert review.status_code == 200
+        assert str(record_id) in {entry["id"] for entry in review.json()["items"]}
+        assert client.post(endpoint + "/return", json={}, headers=reviewer).status_code == 200
+        assert client.get(endpoint).status_code == 404
+        login("owner")
+        assert client.post(endpoint + "/submit", json={}, headers=owner).status_code == 200
+        login("head")
+        assert client.post(endpoint + "/publish", json={}, headers=reviewer).status_code == 200
+        successor = login("successor")
+        published = client.get(
+            "/api/publication/records",
+            params={
+                "scope": "department",
+                "author_id": str(ids["owner"]),
+            },
+        )
+        assert str(record_id) in {entry["id"] for entry in published.json()["items"]}
+        result = client.post(endpoint + "/copy", json={}, headers=successor)
+        assert result.status_code == 201, result.text
+        copy_url = f"/api/publication/records/{result.json()['id']}"
+        copy = client.get(copy_url).json()
+        assert copy["author_id"] == str(ids["successor"])
+        assert copy["original_author_id"] == str(ids["owner"])
+        assert copy["original_id"] == str(record_id)
+        assert copy["text"] == "Текст записи"
+        login("head")
+        assert client.post(endpoint + "/archive", json={}, headers=reviewer).status_code == 200
+        login("successor")
+        assert client.get(endpoint).status_code == 404
+        assert client.get(copy_url).json() == copy
+        assert (
+            client.post(settings, json={"review_required": False}, headers=successor).status_code
+            == 403
+        )
+        admin = login("admin")
+        assert client.get(endpoint).status_code == 403
+        assert client.get(settings).json()["review_required"] is True
+        try:
+            changed = client.post(settings, json={"review_required": False}, headers=admin)
+            assert changed.status_code == 200, changed.text
+            login("owner")
+            material = f"/api/publication/materials/{ids['draft_materials']}"
+            assert client.post(material + "/publish", json={}, headers=owner).status_code == 200
+            assert client.get(material).json()["status"] == "published"
+        finally:
+            login("admin")
+            assert (
+                client.post(settings, json={"review_required": True}, headers=admin).status_code
+                == 200
+            )
 
 
 def set_actor(db: Session, employee_id: UUID) -> None:
@@ -243,3 +332,31 @@ def test_successful_foreign_read_is_audited(
             assert list(items) == [ids["submitted_materials"]]
     finally:
         engine.dispose()
+
+
+def test_database_denies_direct_publish_and_copy_without_permission(
+    data: tuple[dict[str, UUID], dict[str, str]],
+) -> None:
+    ids, _ = data
+    with get_session_factory().begin() as db:
+        set_actor(db, ids["owner"])
+        assert (
+            db.scalar(
+                sa.select(
+                    sa.func.knowledge.transition_item("records", ids["draft_records"], "publish")
+                )
+            )
+            is False
+        )
+        set_actor(db, ids["other_head"])
+        assert db.scalar(sa.select(sa.func.knowledge.copy_record(ids["published_records"]))) is None
+        assert (
+            db.scalar(
+                sa.select(
+                    sa.func.knowledge.transition_item(
+                        "records", ids["submitted_records"], "publish"
+                    )
+                )
+            )
+            is False
+        )

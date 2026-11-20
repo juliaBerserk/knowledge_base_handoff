@@ -175,7 +175,27 @@ class Material(KnowledgeItem, Base):
 
 class KnowledgeRecord(KnowledgeItem, Base):
     __tablename__ = "records"
-    __table_args__ = KnowledgeItem.constraints("record")
+    __table_args__ = (
+        *KnowledgeItem.constraints("record"),
+        sa.CheckConstraint(
+            "(original_id IS NULL) = (original_author_id IS NULL)", name="ck_record_origin_pair"
+        ),
+    )
 
     space_kind: Mapped[SpaceKind] = mapped_column(enum_type(SpaceKind, "ck_record_space_kind"))
     status: Mapped[KnowledgeStatus] = mapped_column(enum_type(KnowledgeStatus, "ck_record_status"))
+    cleaned_text: Mapped[str | None] = mapped_column(sa.Text)
+    original_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("records.id", name="fk_record_original_id"), index=True
+    )
+    original_author_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("employees.id", name="fk_record_original_author_id")
+    )
+
+
+class PublicationSettings(Base):
+    __tablename__ = "publication_settings"
+    __table_args__ = (sa.CheckConstraint("id = 1", name="ck_publication_singleton"),)
+
+    id: Mapped[int] = mapped_column(sa.SmallInteger, primary_key=True)
+    review_required: Mapped[bool] = mapped_column(server_default=sa.true())

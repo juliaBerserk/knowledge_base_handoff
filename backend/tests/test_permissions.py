@@ -2,7 +2,16 @@ from itertools import product
 
 import pytest
 
-from estafeta.core.permissions import Relation, can_copy, can_publish, can_read, can_write
+from estafeta.core.permissions import (
+    Relation,
+    can_archive,
+    can_copy,
+    can_publish,
+    can_read,
+    can_return,
+    can_submit,
+    can_write,
+)
 from estafeta.models import KnowledgeStatus as Status
 from estafeta.models import SpaceKind as Space
 
@@ -29,6 +38,20 @@ def test_read_and_copy_matrix(relation: Relation, kind: Space, status: Status) -
 @pytest.mark.parametrize(("relation", "status"), product(Relation, Status))
 def test_write_matrix(relation: Relation, status: Status) -> None:
     assert can_write(relation, status) == ((relation, status) == (Relation.OWNER, Status.DRAFT))
+
+
+@pytest.mark.parametrize(
+    ("relation", "status", "allowed"), product(Relation, Status, (True, False))
+)
+def test_workflow_permissions(relation: Relation, status: Status, allowed: bool) -> None:
+    own_draft = (relation, status) == (Relation.OWNER, Status.DRAFT)
+    assert can_submit(relation, status, allowed) == (allowed and own_draft)
+    assert can_return(relation, status) == (
+        (relation, status) == (Relation.SUPERVISOR, Status.IN_REVIEW)
+    )
+    assert can_archive(relation, status, manages_position=allowed) == (
+        allowed if status is Status.PUBLISHED else own_draft
+    )
 
 
 @pytest.mark.parametrize(

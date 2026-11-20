@@ -42,3 +42,17 @@ def can_publish(
 
 def can_copy(relation: Relation, kind: SpaceKind, status: KnowledgeStatus) -> bool:
     return kind is SpaceKind.POSITION and can_read(relation, kind, status)
+
+
+def can_submit(relation: Relation, status: KnowledgeStatus, target_allowed: bool) -> bool:
+    return target_allowed and can_write(relation, status)
+
+
+def can_return(relation: Relation, status: KnowledgeStatus) -> bool:
+    return relation is Relation.SUPERVISOR and status is KnowledgeStatus.IN_REVIEW
+
+
+def can_archive(relation: Relation, status: KnowledgeStatus, *, manages_position: bool) -> bool:
+    if status is KnowledgeStatus.PUBLISHED:
+        return manages_position
+    return can_write(relation, status)

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import MaterialPanel from "./MaterialPanel";
+import PublicationPanel, { PublicationSettingsPanel } from "./PublicationPanel";
 
 type Session = {
   employee_id: string;
@@ -229,7 +230,13 @@ export default function AuthPanel() {
             </details>
           )}
           {!session.enrollment_only && ["employee", "department_head"].includes(session.role) && (
-            <MaterialPanel csrf={session.csrf_token} />
+            <>
+              <MaterialPanel csrf={session.csrf_token} />
+              <PublicationPanel csrf={session.csrf_token} manager={session.role === "department_head"} />
+            </>
+          )}
+          {!session.enrollment_only && session.role === "admin" && (
+            <PublicationSettingsPanel csrf={session.csrf_token} />
           )}
           <p><button disabled={busy} onClick={() => void run(() => logout(session))}>Выйти</button></p>
         </>
