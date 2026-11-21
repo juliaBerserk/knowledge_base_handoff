@@ -119,7 +119,9 @@ def main() -> None:
     tag = secrets.token_hex(6)
     network, backend, nginx = (f"estafeta-tls-{part}-{tag}" for part in ("net", "api", "web"))
     image = "estafeta-tls-smoke:local"
-    docker("build", "--target", "tls", "-t", image, "-f", str(root / "Dockerfile.frontend"), str(root))
+    docker(
+        "build", "--target", "tls", "-t", image, "-f", str(root / "Dockerfile.frontend"), str(root),
+    )
     docker("network", "create", network)
     try:
         with tempfile.TemporaryDirectory() as folder:

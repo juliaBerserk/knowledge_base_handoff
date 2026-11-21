@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const managed = process.env.E2E_VITE === "1";
 const managedURL = "http://127.0.0.1:4173";
 const baseURL = managed ? managedURL : (process.env.E2E_BASE_URL ?? "http://127.0.0.1:8080");
+const chromiumExecutable = process.env.E2E_BROWSER_EXECUTABLE;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -21,7 +22,11 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], channel: process.env.E2E_BROWSER_CHANNEL },
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: chromiumExecutable ? undefined : process.env.E2E_BROWSER_CHANNEL,
+        launchOptions: { executablePath: chromiumExecutable },
+      },
     },
     ...(process.env.E2E_FIREFOX === "1" ? [
       { name: "firefox", use: { ...devices["Desktop Firefox"] } },

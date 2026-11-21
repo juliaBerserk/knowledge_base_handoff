@@ -94,3 +94,15 @@ jobs:
           python-version: "3.12"
       - run: pip install cryptography==46.0.7
       - run: python deploy/tests/tls_smoke.py
+
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y age
+      - run: pip install -e "./backend[dev]"
+      - run: python -m pytest -q deploy/tests/test_acceptance.py
+      - run: python deploy/tests/backup_smoke.py

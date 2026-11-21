@@ -207,6 +207,17 @@ def test_search_chat_history_feedback_and_revocation(monkeypatch: pytest.MonkeyP
                 db.execute(
                     sa.update(Material)
                     .where(Material.id == ids["material_position_current"])
+                    .values(cleaned_text="Новая версия регламента")
+                )
+            stale = client.post(
+                "/api/search", headers=headers, json={"question": "регламент", "scope": "position"}
+            )
+            assert stale.status_code == 200
+            assert stale.json()["results"] == []
+            with Session(engine) as db, db.begin():
+                db.execute(
+                    sa.update(Material)
+                    .where(Material.id == ids["material_position_current"])
                     .values(status="archived")
                 )
             item = client.get(detail).json()["turns"][0]

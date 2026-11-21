@@ -5,6 +5,7 @@ from enum import StrEnum
 from uuid import UUID
 
 import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import Session
 
 from estafeta.core.config import Settings
@@ -34,19 +35,14 @@ class Hit:
     text: str
 
 
-def scoped(query: sa.Select, scope: Scope) -> sa.Select:
+def material_scope(scope: Scope) -> tuple[sa.ColumnElement[bool], ...]:
     return (
-        query.select_from(Chunk)
-        .join(Material, Material.id == Chunk.material_id)
-        .where(
-            Chunk.active,
-            sa.func.knowledge.access_relation(Material.space_id).in_(RELATIONS[scope]),
-            Material.status.in_((KnowledgeStatus.DRAFT, KnowledgeStatus.IN_REVIEW))
-            if scope is Scope.PERSONAL
-            else Material.status == KnowledgeStatus.PUBLISHED,
-            Material.space_kind
-            == (SpaceKind.PERSONAL if scope is Scope.PERSONAL else SpaceKind.POSITION),
-        )
+        sa.func.knowledge.access_relation(Material.space_id).in_(RELATIONS[scope]),
+        Material.status.in_((KnowledgeStatus.DRAFT, KnowledgeStatus.IN_REVIEW))
+        if scope is Scope.PERSONAL
+        else Material.status == KnowledgeStatus.PUBLISHED,
+        Material.space_kind
+        == (SpaceKind.PERSONAL if scope is Scope.PERSONAL else SpaceKind.POSITION),
     )
 
 
@@ -73,12 +69,14 @@ def authorized_hits(db: Session, ids: list[UUID], scope: Scope) -> dict[UUID, Hi
     if not ids:
         return {}
     relation = sa.func.knowledge.access_relation(Material.space_id)
-    stmt = scoped(
+    stmt = (
         sa.select(
             Chunk.id, Chunk.material_id, Chunk.text, Material.space_kind, Material.status, relation
-        ),
-        scope,
-    ).where(Chunk.id.in_(ids))
+        )
+        .select_from(Chunk)
+        .join(Material, Material.id == Chunk.material_id)
+        .where(Chunk.active, Chunk.id.in_(ids), *material_scope(scope))
+    )
     return {
         chunk_id: Hit(chunk_id, material_id, text)
         for chunk_id, material_id, text, kind, status, key in db.execute(stmt)
@@ -89,26 +87,20 @@ def authorized_hits(db: Session, ids: list[UUID], scope: Scope) -> dict[UUID, Hi
 def search(
     db: Session, query: str, scope: Scope, vector: list[float] | None, settings: Settings
 ) -> list[Hit]:
-    candidates = max(32, settings.rag_top_k * 4)
-    tsquery = sa.func.websearch_to_tsquery(sa.literal_column("'russian'::regconfig"), query)
-    full_text = (
-        scoped(sa.select(Chunk.id), scope)
-        .where(Chunk.search_vector.op("@@")(tsquery))
-        .order_by(sa.func.ts_rank_cd(Chunk.search_vector, tsquery).desc(), Chunk.id)
-    )
-    lexical = list(db.scalars(full_text.limit(candidates)))
-    semantic: list[UUID] = []
     if vector is not None:
         db.execute(sa.text("SET LOCAL hnsw.iterative_scan = strict_order"))
-        ann = (
-            scoped(sa.select(Chunk.id), scope)
-            .where(
-                Chunk.embedding_key
-                == embedding_key(settings.embedding_model, settings.embedding_revision)
-            )
-            .order_by(Chunk.embedding.cosine_distance(vector))
-        )
-        semantic = list(db.scalars(ann.limit(candidates)))
+    candidates = sa.text("""
+        SELECT lexical, semantic
+        FROM knowledge.rank_chunk_ids(:query, :scope, CAST(:vector AS public.vector),
+                                      :model_key, :limit)
+    """).bindparams(sa.bindparam("vector", type_=Vector(1024)))
+    lexical, semantic = db.execute(candidates, {
+        "query": query,
+        "scope": scope.value,
+        "vector": vector,
+        "model_key": embedding_key(settings.embedding_model, settings.embedding_revision),
+        "limit": max(32, settings.rag_top_k * 4),
+    }).one()
     ranked = rrf(lexical, semantic, limit=settings.rag_top_k)
     allowed = authorized_hits(db, ranked, scope)
     return [allowed[item] for item in ranked if item in allowed]

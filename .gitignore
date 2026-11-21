@@ -1,6 +1,10 @@
 .env
 .env.production
+.env.recovery
 tls/
+*.age
+*.age-key
+*.pgdump
 .coverage
 redaction.local.json
 .venv/

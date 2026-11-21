@@ -10,7 +10,11 @@ frontend/playwright-report
 **/*.pyc
 .env
 .env.production
+.env.recovery
 tls
+**/*.age
+**/*.age-key
+**/*.pgdump
 redaction.local.json
 data
 *.md
